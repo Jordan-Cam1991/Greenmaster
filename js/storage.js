@@ -15,7 +15,8 @@ const StorageManager = {
     COMPLETED_TASKS: 'gm_completed_tasks',
     SETTINGS: 'gm_user_settings',
     ONBOARDED: 'gm_user_onboarded',
-    LOGS: 'gm_maintenance_logs'
+    LOGS: 'gm_maintenance_logs',
+    TAP_TIMER: 'gm_holman_tap_timer'
   },
 
   getDefaultZones() {
@@ -498,6 +499,85 @@ const StorageManager = {
       localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(settings));
     } catch (e) {
       console.error('Error saving settings', e);
+    }
+  },
+
+  getDefaultTapTimer() {
+    // Pre-configured with Holman BX4 4-Outlet Tap Timer (CO3314) — Tue & Fri @ 05:00 AM for 20 min
+    return {
+      enabled: true,
+      deviceName: 'Holman BX4 4-Outlet (CO3314)',
+      activeOutlet: 1,
+      outlets: [
+        {
+          outlet: 1,
+          name: 'Zone 1 (Backyard)',
+          linkedZoneId: 'all',
+          enabled: true,
+          mode: '7days', // '7days' | 'interval' | 'odd' | 'even'
+          days: [2, 5], // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
+          intervalDays: 3,
+          startHour: 5,
+          startMin: 0,
+          runMinutes: 20
+        },
+        {
+          outlet: 2,
+          name: 'Zone 2 (Front Lawn)',
+          linkedZoneId: 'front_main',
+          enabled: true,
+          mode: '7days',
+          days: [2, 5],
+          intervalDays: 3,
+          startHour: 5,
+          startMin: 20,
+          runMinutes: 20
+        },
+        {
+          outlet: 3,
+          name: 'Zone 3 (Nature Strip)',
+          linkedZoneId: 'front_verge',
+          enabled: false,
+          mode: '7days',
+          days: [2, 5],
+          intervalDays: 3,
+          startHour: 5,
+          startMin: 40,
+          runMinutes: 15
+        },
+        {
+          outlet: 4,
+          name: 'Zone 4 (Shaded Area)',
+          linkedZoneId: 'back_shade',
+          enabled: false,
+          mode: '7days',
+          days: [2, 5],
+          intervalDays: 4,
+          startHour: 6,
+          startMin: 0,
+          runMinutes: 15
+        }
+      ]
+    };
+  },
+
+  getTapTimer() {
+    try {
+      const data = localStorage.getItem(this.KEYS.TAP_TIMER);
+      if (data) {
+        return { ...this.getDefaultTapTimer(), ...JSON.parse(data) };
+      }
+    } catch (e) {
+      console.warn('Error reading tap timer config', e);
+    }
+    return this.getDefaultTapTimer();
+  },
+
+  saveTapTimer(config) {
+    try {
+      localStorage.setItem(this.KEYS.TAP_TIMER, JSON.stringify(config));
+    } catch (e) {
+      console.error('Error saving tap timer config', e);
     }
   }
 };

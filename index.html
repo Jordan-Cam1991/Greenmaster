@@ -248,10 +248,16 @@
             </div>
           </div>
 
-          <button id="export-calendar-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl transition-colors flex items-center gap-1 flex-shrink-0 btn-press">
-            <i data-lucide="calendar-plus" class="w-3.5 h-3.5 text-blue-600"></i>
-            <span>Add to Phone</span>
-          </button>
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <button type="button" onclick="App.openHolmanTimerModal()" class="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-bold text-[11px] rounded-xl transition-colors flex items-center gap-1 btn-press" title="Sync Holman BX4 Tap Timer">
+              <i data-lucide="droplets" class="w-3.5 h-3.5 text-sky-600"></i>
+              <span>Holman BX4</span>
+            </button>
+            <button id="export-calendar-btn" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl transition-colors flex items-center gap-1 btn-press">
+              <i data-lucide="calendar-plus" class="w-3.5 h-3.5 text-blue-600"></i>
+              <span>Add to Phone</span>
+            </button>
+          </div>
         </div>
 
         <!-- Clean 3-Option Range Selector: Week | Fortnight | Month -->
@@ -381,19 +387,35 @@
     <!-- TAB 4: WEATHER & SMART WATERING VIEW (FULL-SCREEN LAYOUT) -->
     <main id="view-weather" class="tab-view hidden app-screen-fill p-3 gap-3">
       <!-- Main Weather Summary Card -->
-      <div class="bg-gradient-to-br from-sky-600 via-blue-700 to-indigo-800 text-white p-4 rounded-2xl shadow-md">
+      <div class="bg-gradient-to-br from-sky-600 via-blue-700 to-indigo-800 text-white p-3.5 rounded-2xl shadow-md">
         <div class="flex items-center justify-between">
           <div>
             <span class="text-[10px] text-sky-200 uppercase tracking-wider font-bold">Live Weather & Sprinkler AI</span>
-            <h3 id="dash-weather-temp" class="text-2xl font-extrabold mt-0.5">24°C</h3>
+            <h3 id="dash-weather-temp" class="text-xl font-extrabold mt-0.5">24°C</h3>
           </div>
-          <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white">
-            <i data-lucide="cloud-rain" class="w-5 h-5"></i>
+          <div class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white">
+            <i data-lucide="cloud-rain" class="w-4 h-4"></i>
           </div>
         </div>
-        <p id="weather-summary-text" class="text-xs text-white/95 mt-2.5 pt-2.5 border-t border-white/15 leading-snug">
+        <p id="weather-summary-text" class="text-xs text-white/95 mt-2 pt-2 border-t border-white/15 leading-snug">
           ☀️ Dry & clear — Great window to mow or spray.
         </p>
+      </div>
+
+      <!-- Holman BX4 Tap Timer Sync Card -->
+      <div class="bg-white p-3.5 rounded-2xl border border-sky-200 shadow-2xs flex items-center justify-between gap-2.5">
+        <div class="flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[9px] font-extrabold uppercase">Holman BX4</span>
+            <strong class="text-xs font-extrabold text-slate-900">4-Outlet Tap Timer (CO3314)</strong>
+          </div>
+          <p id="weather-holman-summary" class="text-[11px] text-sky-800 font-semibold mt-1 leading-snug">
+            Zone 1: Tue, Fri • 5:00 am (20 min) synced to Calendar
+          </p>
+        </div>
+        <button type="button" onclick="App.openHolmanTimerModal()" class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex-shrink-0 btn-press">
+          Sync Days
+        </button>
       </div>
 
       <!-- Irrigation by Section -->
@@ -411,11 +433,11 @@
       <div class="grid grid-cols-2 gap-2.5 text-xs text-slate-600">
         <div class="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <strong class="text-slate-900 block">🌧️ 5mm Rain Skip</strong>
-          <span class="text-[11px] text-slate-500 leading-snug block mt-1">Calendar skips deep soak when 5mm+ rain is forecast.</span>
+          <span class="text-[11px] text-slate-500 leading-snug block mt-1">Alerts you when rain lands on a Holman BX4 timer day.</span>
         </div>
         <div class="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-          <strong class="text-slate-900 block">🌅 6:00 AM Soak</strong>
-          <span class="text-[11px] text-slate-500 leading-snug block mt-1">Morning watering trains roots deep and prevents fungus.</span>
+          <strong class="text-slate-900 block">🌅 5:00 AM Soak</strong>
+          <span class="text-[11px] text-slate-500 leading-snug block mt-1">Dawn watering trains roots deep and prevents fungus.</span>
         </div>
       </div>
     </main>
@@ -1234,6 +1256,92 @@
             ✓ Log Application
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- HOLMAN BX4 4-OUTLET TAP TIMER SYNC MODAL (MATCHES iGARDENER APP) -->
+    <div id="holman-timer-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center px-4 app-modal-safe hidden">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-4 space-y-3 shadow-2xl border border-slate-200 max-h-[88vh] overflow-y-auto no-scrollbar">
+        <!-- Top Header Matching Holman Blue -->
+        <div class="flex items-center justify-between bg-blue-600 text-white px-3.5 py-2.5 rounded-2xl">
+          <div>
+            <span class="text-[9px] font-bold uppercase tracking-wider text-blue-100 block">Holman iGardener Sync</span>
+            <h3 class="text-sm font-extrabold">BX4 4-Outlet Tap Timer (CO3314)</h3>
+          </div>
+          <button type="button" onclick="App.closeHolmanTimerModal()" class="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white font-bold text-xs">✕</button>
+        </div>
+
+        <!-- 1. Outlet / Zone 1-4 Selector Tabs (Matches Holman App 1 | 2 | 3 | 4) -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[10px] font-bold uppercase text-slate-500">Tap Timer Outlet (Zone 1–4)</span>
+            <label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-700 cursor-pointer">
+              <input type="checkbox" id="holman-outlet-enabled" onchange="App.toggleHolmanOutletEnabled(this.checked)" class="w-4 h-4 accent-blue-600 rounded">
+              <span>Outlet Active</span>
+            </label>
+          </div>
+          <div id="holman-outlet-tabs" class="grid grid-cols-4 gap-2">
+            <!-- Populated by App.renderHolmanModal() -->
+          </div>
+        </div>
+
+        <!-- 2. Link Outlet to Lawn Section -->
+        <div>
+          <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Waters Which Lawn Section?</label>
+          <select id="holman-linked-zone" onchange="App.updateHolmanOutletField('linkedZoneId', this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none">
+            <!-- Populated by App.renderHolmanModal() -->
+          </select>
+        </div>
+
+        <!-- 3. Schedule Mode Tabs: 7 DAYS | INTERVAL | ODD | EVEN -->
+        <div id="holman-mode-tabs" class="grid grid-cols-4 gap-1.5">
+          <!-- Populated by App.renderHolmanModal() -->
+        </div>
+
+        <!-- 4. M T W T F S S Vertical Blue Slider Toggles (Matches Holman App UI) -->
+        <div id="holman-days-box" class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+          <div id="holman-day-sliders" class="grid grid-cols-7 gap-1.5 text-center">
+            <!-- Populated by App.renderHolmanModal() -->
+          </div>
+        </div>
+
+        <!-- Interval Days Picker (Shown only when Mode = INTERVAL) -->
+        <div id="holman-interval-box" class="hidden bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700">Water Every X Days:</span>
+          <input type="number" id="holman-interval-input" min="1" max="14" value="3" onchange="App.updateHolmanOutletField('intervalDays', Number(this.value))" class="w-20 bg-white border border-slate-300 rounded-xl p-1.5 text-center text-sm font-extrabold text-slate-900">
+        </div>
+
+        <!-- 5. START 1 Time & Run Time (Matches 05:00 & 00:20 from Holman App) -->
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold text-slate-700 uppercase">Start 1 Time</span>
+            <div class="flex items-center gap-1.5">
+              <input type="number" id="holman-start-hour" min="0" max="23" value="5" onchange="App.updateHolmanOutletField('startHour', Number(this.value))" class="w-14 bg-white border border-slate-300 rounded-xl py-1.5 text-center text-base font-extrabold text-slate-900">
+              <span class="font-extrabold text-slate-900">:</span>
+              <input type="number" id="holman-start-min" min="0" max="59" step="5" value="0" onchange="App.updateHolmanOutletField('startMin', Number(this.value))" class="w-14 bg-white border border-slate-300 rounded-xl py-1.5 text-center text-base font-extrabold text-slate-900">
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-200/80">
+            <span class="text-[11px] font-extrabold text-slate-700 uppercase">Run Time (Mins)</span>
+            <div class="flex items-center gap-1.5">
+              <input type="number" id="holman-run-mins" min="1" max="180" value="20" onchange="App.updateHolmanOutletField('runMinutes', Number(this.value))" class="w-20 bg-white border border-slate-300 rounded-xl py-1.5 text-center text-base font-extrabold text-blue-700">
+              <span class="text-xs font-bold text-slate-500">min</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Auto-Import from Holman iGardener Screenshot -->
+        <label class="w-full py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all btn-press">
+          <input type="file" accept="image/*" onchange="App.importHolmanScreenshot(event)" class="hidden">
+          <i data-lucide="scan-line" class="w-4 h-4 text-blue-600"></i>
+          <span>Import Days from Holman App Screenshot</span>
+        </label>
+
+        <!-- Save & Pull into Calendar Button -->
+        <button type="button" onclick="App.saveHolmanTimerAndClose()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all btn-press">
+          ✓ Sync Holman Days to Calendar
+        </button>
       </div>
     </div>
 

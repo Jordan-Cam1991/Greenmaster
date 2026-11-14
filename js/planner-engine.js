@@ -680,9 +680,55 @@ const PlannerEngine = {
    * 2. Live weather & rain forecast (`weather`) — auto-skips deep soak if rain is coming!
    * 3. Latest AI photo scan (`scanResult`) — adds spot treatments if photos show dry patches or weeds!
    */
-  generateCalendarSchedule({ activeZone = null, zones = [], weather = null, zoneLogs = {}, scanResult = null, daysCount = 7 }) {
+  generateCalendarSchedule({ activeZone = null, zones = [], weather = null, zoneLogs = {}, scanResult = null, daysCount = 7, tapTimer = null }) {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
+
+    const resolvedTimer = tapTimer || (typeof StorageManager !== 'undefined' && StorageManager.getTapTimer ? StorageManager.getTapTimer() : null);
+    const outlets = (resolvedTimer && Array.isArray(resolvedTimer.outlets)) ? resolvedTimer.outlets : [];
+    const activeOutlet = (activeZone && outlets.find(o => o.enabled && o.linkedZoneId === activeZone.id))
+      || outlets.find(o => o.enabled)
+      || outlets[0]
+      || null;
+    const useHolmanTimer = !!(resolvedTimer && resolvedTimer.enabled && activeOutlet && activeOutlet.enabled);
+
+    const isHolmanDay = (dateObj, dayOffset, outlet) => {
+      if (!outlet) return false;
+      if (outlet.mode === 'odd') return dateObj.getDate() % 2 === 1;
+      if (outlet.mode === 'even') return dateObj.getDate() % 2 === 0;
+      if (outlet.mode === 'interval') return Math.abs(dayOffset) % Math.max(1, Number(outlet.intervalDays) || 3) === 0;
+      const activeDays = Array.isArray(outlet.days) ? outlet.days : [2, 5];
+      return activeDays.includes(dateObj.getDay());
+    };
+
+    const formatHolmanTimeRange = (outlet) => {
+      const sh = Number(outlet?.startHour ?? 5);
+      const sm = Number(outlet?.startMin ?? 0);
+      const run = Number(outlet?.runMinutes ?? 20);
+      const startTotal = sh * 60 + sm;
+      const endTotal = startTotal + run;
+      const fmt = (tot) => {
+        const h24 = Math.floor(tot / 60) % 24;
+        const m = tot % 60;
+        const period = h24 >= 12 ? 'pm' : 'am';
+        const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+        return { time: `${h12}:${String(m).padStart(2, '0')}`, period };
+      };
+      const s = fmt(startTotal);
+      const e = fmt(endTotal);
+      return s.period === e.period ? `${s.time} – ${e.time} ${e.period}` : `${s.time} ${s.period} – ${e.time} ${e.period}`;
+    };
+
+    const formatHolmanDaysSummary = (outlet) => {
+      if (!outlet) return 'Tue & Fri';
+      if (outlet.mode === 'odd') return 'Odd Days';
+      if (outlet.mode === 'even') return 'Even Days';
+      if (outlet.mode === 'interval') return `Every ${outlet.intervalDays || 3} Days`;
+      const map = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' };
+      const order = [1, 2, 3, 4, 5, 6, 0];
+      const list = order.filter(d => (outlet.days || []).includes(d)).map(d => map[d]);
+      return list.length > 0 ? list.join(', ') : 'Off';
+    };
 
     const msPerDay = 1000 * 60 * 60 * 24;
     const daysSince = (isoStr, fallbackDays) => {
@@ -692,8 +738,21 @@ const PlannerEngine = {
       return Math.max(0, Math.round((now - d) / msPerDay));
     };
 
+    // If Holman Tap Timer is active, compute how many days ago the tap timer last ran
+    let holmanFallbackDays = 4;
+    if (useHolmanTimer) {
+      for (let back = 1; back <= 7; back++) {
+        const prevDate = new Date(now);
+        prevDate.setDate(now.getDate() - back);
+        if (isHolmanDay(prevDate, -back, activeOutlet)) {
+          holmanFallbackDays = back;
+          break;
+        }
+      }
+    }
+
     const daysSinceMow = daysSince(zoneLogs.lastMow, 3);
-    const daysSinceWater = daysSince(zoneLogs.lastWater, 4);
+    const daysSinceWater = zoneLogs.lastWater ? Math.min(daysSince(zoneLogs.lastWater, holmanFallbackDays), holmanFallbackDays) : holmanFallbackDays;
     const daysSinceFeed = daysSince(zoneLogs.lastFeed, 11);
 
     // Determine section name & cut height in the background
@@ -813,34 +872,79 @@ const PlannerEngine = {
       if (!nextMowDay && placed) nextMowDay = placed;
     }
 
-    // 2. Schedule Deep Soak Watering based on weather & last water
+    // 2. Schedule Watering: Use Holman BX4 Tap Timer days if enabled, otherwise weather-based deep soak
     let nextWaterDay = null;
-    for (let wDay = firstWaterOffset; wDay < daysCount; wDay += waterInterval) {
-      const rainNearby = isRainyDay(wDay) || (wDay > 0 && isRainyDay(wDay - 1)) || (wDay + 1 < daysCount && isRainyDay(wDay + 1));
-      if (rainNearby) {
-        if (wDay < daysCount && !dayBuckets[wDay].allDayBanner) {
-          dayBuckets[wDay].allDayBanner = `🌧️ Rain nearby — Deep soak skipped automatically`;
+    if (useHolmanTimer) {
+      const timeRange = formatHolmanTimeRange(activeOutlet);
+      const daysSummary = formatHolmanDaysSummary(activeOutlet);
+      for (let wDay = 0; wDay < daysCount; wDay++) {
+        const b = dayBuckets[wDay];
+        if (isHolmanDay(b.dateObj, wDay, activeOutlet)) {
+          if (isRainyDay(wDay)) {
+            b.allDayBanner = `🌧️ Rain on Holman BX4 Day — Pause Zone ${activeOutlet.outlet} in iGardener`;
+            continue;
+          }
+          const wInfo = getWeatherForOffset(wDay);
+          const ev = {
+            id: `water_${b.dateKey}`,
+            dateKey: b.dateKey,
+            type: 'water',
+            icon: '💧',
+            title: `Holman BX4 Zone ${activeOutlet.outlet} (${activeOutlet.runMinutes} min)`,
+            timeLabel: timeRange,
+            startHour: Number(activeOutlet.startHour ?? 5),
+            subtext: `Tap Timer (${daysSummary}) • ${wInfo.maxTemp}°C forecast`,
+            color: 'sky'
+          };
+          b.events.push(ev);
+          if (!nextWaterDay) nextWaterDay = b;
         }
-        continue;
       }
-      const wInfo = getWeatherForOffset(wDay);
-      const reason = wDay === firstWaterOffset
-        ? `Last watered ${daysSinceWater}d ago • ${wInfo.maxTemp}°C forecast`
-        : `Auto-scheduled for ${wInfo.maxTemp}°C dry weather`;
-      if (wDay >= 0 && wDay < daysCount) {
-        const ev = {
-          id: `water_${dayBuckets[wDay].dateKey}`,
-          dateKey: dayBuckets[wDay].dateKey,
-          type: 'water',
-          icon: '💧',
-          title: `Deep Soak Watering (25 min)`,
-          timeLabel: '6:00 – 6:25 am',
-          startHour: 6,
-          subtext: reason,
-          color: 'sky'
-        };
-        dayBuckets[wDay].events.push(ev);
-        if (!nextWaterDay) nextWaterDay = dayBuckets[wDay];
+      // If nextWaterDay wasn't found in a short window (e.g. 7d with rain skip), scan up to 14 days ahead for the label
+      if (!nextWaterDay) {
+        for (let look = 0; look < 14; look++) {
+          const d = new Date(now);
+          d.setDate(now.getDate() + look);
+          if (isHolmanDay(d, look, activeOutlet)) {
+            nextWaterDay = {
+              isToday: look === 0,
+              offset: look,
+              dayName: dayNamesShort[d.getDay()],
+              dayNumber: d.getDate(),
+              monthShort: monthNamesShort[d.getMonth()]
+            };
+            break;
+          }
+        }
+      }
+    } else {
+      for (let wDay = firstWaterOffset; wDay < daysCount; wDay += waterInterval) {
+        const rainNearby = isRainyDay(wDay) || (wDay > 0 && isRainyDay(wDay - 1)) || (wDay + 1 < daysCount && isRainyDay(wDay + 1));
+        if (rainNearby) {
+          if (wDay < daysCount && !dayBuckets[wDay].allDayBanner) {
+            dayBuckets[wDay].allDayBanner = `🌧️ Rain nearby — Deep soak skipped automatically`;
+          }
+          continue;
+        }
+        const wInfo = getWeatherForOffset(wDay);
+        const reason = wDay === firstWaterOffset
+          ? `Last watered ${daysSinceWater}d ago • ${wInfo.maxTemp}°C forecast`
+          : `Auto-scheduled for ${wInfo.maxTemp}°C dry weather`;
+        if (wDay >= 0 && wDay < daysCount) {
+          const ev = {
+            id: `water_${dayBuckets[wDay].dateKey}`,
+            dateKey: dayBuckets[wDay].dateKey,
+            type: 'water',
+            icon: '💧',
+            title: `Deep Soak Watering (25 min)`,
+            timeLabel: '6:00 – 6:25 am',
+            startHour: 6,
+            subtext: reason,
+            color: 'sky'
+          };
+          dayBuckets[wDay].events.push(ev);
+          if (!nextWaterDay) nextWaterDay = dayBuckets[wDay];
+        }
       }
     }
 

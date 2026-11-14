@@ -2595,6 +2595,26 @@ const App = {
 
   renderWeatherZones() {
     const container = document.getElementById('weather-zones-list');
+    const holmanSummaryEl = document.getElementById('weather-holman-summary');
+    const tapTimer = StorageManager.getTapTimer();
+    const outlets = (tapTimer && Array.isArray(tapTimer.outlets)) ? tapTimer.outlets : [];
+    const activeOutlet = outlets.find(o => o.enabled) || outlets[0];
+
+    if (holmanSummaryEl && activeOutlet) {
+      const dayMap = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' };
+      const order = [1, 2, 3, 4, 5, 6, 0];
+      const daysTxt = activeOutlet.mode === 'odd'
+        ? 'Odd Days'
+        : activeOutlet.mode === 'even'
+          ? 'Even Days'
+          : activeOutlet.mode === 'interval'
+            ? `Every ${activeOutlet.intervalDays || 3}d`
+            : order.filter(d => (activeOutlet.days || []).includes(d)).map(d => dayMap[d]).join(', ') || 'Off';
+      const sh = String(activeOutlet.startHour ?? 5).padStart(2, '0');
+      const sm = String(activeOutlet.startMin ?? 0).padStart(2, '0');
+      holmanSummaryEl.innerText = `Zone ${activeOutlet.outlet}: ${daysTxt} • ${sh}:${sm} (${activeOutlet.runMinutes || 20} min) synced to Calendar`;
+    }
+
     if (!container) return;
     const zones = StorageManager.getZones();
     const skipRain = this.weather?.shouldSkipSprinklers;
@@ -2629,6 +2649,237 @@ const App = {
         </div>
       `;
     }).join('');
+  },
+
+  /* ------------------- HOLMAN BX4 TAP TIMER SYNC (CO3314) ------------------- */
+
+  openHolmanTimerModal() {
+    this.editingTapTimer = JSON.parse(JSON.stringify(StorageManager.getTapTimer()));
+    const modal = document.getElementById('holman-timer-modal');
+    if (!modal) return;
+    this.renderHolmanModal();
+    modal.classList.remove('hidden');
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
+  },
+
+  closeHolmanTimerModal() {
+    const modal = document.getElementById('holman-timer-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  getActiveHolmanOutletObj() {
+    if (!this.editingTapTimer) {
+      this.editingTapTimer = StorageManager.getTapTimer();
+    }
+    const activeNum = this.editingTapTimer.activeOutlet || 1;
+    return this.editingTapTimer.outlets.find(o => o.outlet === activeNum) || this.editingTapTimer.outlets[0];
+  },
+
+  selectHolmanOutlet(outletNum) {
+    if (!this.editingTapTimer) return;
+    this.editingTapTimer.activeOutlet = outletNum;
+    this.renderHolmanModal();
+  },
+
+  toggleHolmanOutletEnabled(checked) {
+    const outlet = this.getActiveHolmanOutletObj();
+    if (!outlet) return;
+    outlet.enabled = !!checked;
+    this.renderHolmanModal();
+  },
+
+  updateHolmanOutletField(field, value) {
+    const outlet = this.getActiveHolmanOutletObj();
+    if (!outlet) return;
+    outlet[field] = value;
+    this.renderHolmanModal();
+  },
+
+  toggleHolmanDay(dayIndex) {
+    const outlet = this.getActiveHolmanOutletObj();
+    if (!outlet) return;
+    if (!Array.isArray(outlet.days)) outlet.days = [];
+    const idx = outlet.days.indexOf(dayIndex);
+    if (idx >= 0) {
+      outlet.days.splice(idx, 1);
+    } else {
+      outlet.days.push(dayIndex);
+    }
+    this.renderHolmanModal();
+  },
+
+  renderHolmanModal() {
+    const outlet = this.getActiveHolmanOutletObj();
+    if (!outlet) return;
+
+    // 1. Outlet 1-4 buttons
+    const outletTabsEl = document.getElementById('holman-outlet-tabs');
+    if (outletTabsEl) {
+      outletTabsEl.innerHTML = this.editingTapTimer.outlets.map(o => {
+        const isCurrent = o.outlet === outlet.outlet;
+        return `
+          <button type="button" onclick="App.selectHolmanOutlet(${o.outlet})" class="py-2.5 rounded-2xl font-extrabold text-base transition-all border ${isCurrent ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200'}">
+            ${o.outlet}
+          </button>
+        `;
+      }).join('');
+    }
+
+    // Enabled checkbox
+    const enabledCheck = document.getElementById('holman-outlet-enabled');
+    if (enabledCheck) enabledCheck.checked = !!outlet.enabled;
+
+    // 2. Lawn Section Link dropdown
+    const zoneSelect = document.getElementById('holman-linked-zone');
+    if (zoneSelect) {
+      const zones = StorageManager.getZones();
+      zoneSelect.innerHTML = `
+        <option value="all" ${outlet.linkedZoneId === 'all' ? 'selected' : ''}>🌿 All Lawn Sections (Entire Property)</option>
+        ${zones.map(z => `<option value="${z.id}" ${outlet.linkedZoneId === z.id ? 'selected' : ''}>📍 ${z.name}</option>`).join('')}
+      `;
+    }
+
+    // 3. Mode Tabs (7 DAYS | INTERVAL | ODD DAYS | EVEN DAYS)
+    const modeTabsEl = document.getElementById('holman-mode-tabs');
+    const modes = [
+      { id: '7days', label: '7 DAYS' },
+      { id: 'interval', label: 'INTERVAL' },
+      { id: 'odd', label: 'ODD DAYS' },
+      { id: 'even', label: 'EVEN DAYS' }
+    ];
+    if (modeTabsEl) {
+      modeTabsEl.innerHTML = modes.map(m => {
+        const active = (outlet.mode || '7days') === m.id;
+        return `
+          <button type="button" onclick="App.updateHolmanOutletField('mode', '${m.id}')" class="py-2 px-1 rounded-xl text-[10px] font-extrabold transition-all ${active ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
+            ${m.label}
+          </button>
+        `;
+      }).join('');
+    }
+
+    // 4. M T W T F S S Vertical Blue Slider Toggles (Matches Holman iGardener UI)
+    const daysBox = document.getElementById('holman-days-box');
+    const intervalBox = document.getElementById('holman-interval-box');
+    if (daysBox && intervalBox) {
+      if ((outlet.mode || '7days') === 'interval') {
+        daysBox.classList.add('hidden');
+        intervalBox.classList.remove('hidden');
+        const intInput = document.getElementById('holman-interval-input');
+        if (intInput) intInput.value = outlet.intervalDays || 3;
+      } else {
+        daysBox.classList.remove('hidden');
+        intervalBox.classList.add('hidden');
+      }
+    }
+
+    const slidersEl = document.getElementById('holman-day-sliders');
+    if (slidersEl) {
+      const holmanWeek = [
+        { dayIndex: 1, letter: 'M' },
+        { dayIndex: 2, letter: 'T' },
+        { dayIndex: 3, letter: 'W' },
+        { dayIndex: 4, letter: 'T' },
+        { dayIndex: 5, letter: 'F' },
+        { dayIndex: 6, letter: 'S' },
+        { dayIndex: 0, letter: 'S' }
+      ];
+      slidersEl.innerHTML = holmanWeek.map(d => {
+        const isOn = Array.isArray(outlet.days) && outlet.days.includes(d.dayIndex);
+        return `
+          <div onclick="App.toggleHolmanDay(${d.dayIndex})" class="flex flex-col items-center gap-1.5 cursor-pointer select-none">
+            <span class="text-xs font-extrabold text-slate-900">${d.letter}</span>
+            <div class="w-7 h-14 rounded-full p-1 flex flex-col ${isOn ? 'bg-blue-600 justify-start' : 'bg-slate-300 justify-end'} transition-all shadow-inner">
+              <div class="w-5 h-5 rounded-full bg-white shadow-xs"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 5. Start Time & Run Time
+    const shEl = document.getElementById('holman-start-hour');
+    const smEl = document.getElementById('holman-start-min');
+    const runEl = document.getElementById('holman-run-mins');
+    if (shEl) shEl.value = outlet.startHour ?? 5;
+    if (smEl) smEl.value = outlet.startMin ?? 0;
+    if (runEl) runEl.value = outlet.runMinutes ?? 20;
+  },
+
+  importHolmanScreenshot(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const w = 350;
+          const h = Math.round((img.height / img.width) * w) || 750;
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+
+          // Sample the 7 vertical slider columns (M T W T F S S) across y = 39%..47% of the Holman iGardener screenshot
+          const xFractions = [0.09, 0.226, 0.362, 0.50, 0.636, 0.772, 0.908];
+          const dayIndices = [1, 2, 3, 4, 5, 6, 0];
+          const detectedDays = [];
+
+          xFractions.forEach((xf, colIdx) => {
+            const cx = Math.floor(w * xf);
+            let bluePixels = 0;
+            for (let y = Math.floor(h * 0.39); y <= Math.floor(h * 0.47); y += 2) {
+              for (let dx = -4; dx <= 4; dx += 2) {
+                const px = ctx.getImageData(Math.max(0, Math.min(w - 1, cx + dx)), y, 1, 1).data;
+                const r = px[0], g = px[1], b = px[2];
+                // Holman active slider blue: strong blue channel compared to red
+                if (b > 135 && (b - r) > 45 && g > 70) {
+                  bluePixels++;
+                }
+              }
+            }
+            if (bluePixels >= 6) {
+              detectedDays.push(dayIndices[colIdx]);
+            }
+          });
+
+          const outlet = this.getActiveHolmanOutletObj();
+          if (outlet && detectedDays.length > 0) {
+            outlet.mode = '7days';
+            outlet.days = detectedDays;
+            outlet.enabled = true;
+            this.renderHolmanModal();
+            const dayNames = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' };
+            const names = detectedDays.map(d => dayNames[d]).join(', ');
+            this.showToast(`📸 Imported Holman schedule: ${names}!`);
+          } else {
+            this.showToast('📸 Screenshot loaded! Tap any day slider below to fine-tune.');
+          }
+        } catch (err) {
+          console.warn('Screenshot scan fallback:', err);
+          this.showToast('📸 Tap any day slider to match your Holman timer.');
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  saveHolmanTimerAndClose() {
+    if (this.editingTapTimer) {
+      StorageManager.saveTapTimer(this.editingTapTimer);
+    }
+    this.closeHolmanTimerModal();
+    this.renderDashboard();
+    this.renderTasksList();
+    this.renderWeatherZones();
+    this.showToast('💧 Holman BX4 Tap Timer days synced to your Calendar!');
   },
 
   renderAnalytics() {
