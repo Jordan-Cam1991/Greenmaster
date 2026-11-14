@@ -1083,6 +1083,9 @@ const App = {
         }
 
         const actionLabel = ev.type === 'photo' ? '📸 Snap' : '✓ Done';
+        const deleteBtnHtml = ev.userEntryId
+          ? `<button type="button" onclick="event.stopPropagation(); App.deleteUserCalendarEntry('${ev.userEntryId}')" class="px-2 py-1 rounded-lg text-[10px] font-bold bg-black/15 hover:bg-black/25 text-white shrink-0" title="Delete Entry">✕</button>`
+          : '';
 
         return `
           <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-2.5 rounded-xl border ${st.card} flex items-center justify-between gap-2 cursor-pointer transition-all btn-press">
@@ -1090,9 +1093,12 @@ const App = {
               <div class="text-xs font-extrabold leading-snug">${ev.icon} ${ev.title}</div>
               <div class="text-[10px] font-medium ${st.sub} mt-0.5 leading-snug">${ev.timeLabel} • ${ev.subtext}</div>
             </div>
-            <button type="button" class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold shrink-0 ${st.btn}">
-              ${actionLabel}
-            </button>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold ${st.btn}">
+                ${actionLabel}
+              </button>
+              ${deleteBtnHtml}
+            </div>
           </div>
         `;
       }).join('');
@@ -1117,6 +1123,8 @@ const App = {
         </div>
       `;
     }).join('');
+
+    NotificationManager.checkAndFireCalendarReminders(calData.days, completedTasks);
 
     if (window.lucide) {
       setTimeout(() => lucide.createIcons(), 10);
@@ -2656,36 +2664,112 @@ const App = {
       'Coring Aerator',
       'Battery Backpack Sprayer',
       'Calibrated Rotary Spreader'
-    ], this.profile.equipment);
+    ], this.profile.equipment || [], 'equipment');
 
     this.renderChecklistGroup('fertilisers-checklist', [
       'Slow Release Granular (20-2-10)',
       'Liquid Foliar Nitrogen & Iron',
       'Seaweed & Humic Acid Biostimulant'
-    ], this.profile.fertilisers);
+    ], this.profile.fertilisers || [], 'fertilisers');
 
     this.renderChecklistGroup('herbicides-checklist', [
       'Prodiamine / Barricade (Pre-emergent)',
       'Bow & Arrow / Dicamba (Selective Broadleaf)',
       'Primo Maxx / Plant Growth Regulator (PGR)',
       'Soil Wetting Agent (Surfactant)'
-    ], [...this.profile.herbicides, ...(this.profile.specialTreatments || [])]);
+    ], [...(this.profile.herbicides || []), ...(this.profile.specialTreatments || [])], 'herbicides');
   },
 
-  renderChecklistGroup(containerId, options, activeList = []) {
+  renderChecklistGroup(containerId, defaultOptions, activeList = [], categoryKey = '') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    container.innerHTML = options.map((opt, i) => {
+    const customCat = (this.profile.customCatalog && Array.isArray(this.profile.customCatalog[categoryKey]))
+      ? this.profile.customCatalog[categoryKey]
+      : [];
+    const mergedOptions = [...defaultOptions];
+    [...customCat, ...activeList].forEach(item => {
+      if (item && !mergedOptions.includes(item)) {
+        mergedOptions.push(item);
+      }
+    });
+
+    container.innerHTML = mergedOptions.map((opt, i) => {
       const checked = activeList.includes(opt);
+      const isCustom = !defaultOptions.includes(opt);
       const inputId = `${containerId}_${i}`;
+      const escapedOpt = opt.replace(/'/g, "\\'");
       return `
-        <label for="${inputId}" class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer select-none text-xs transition-colors ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-medium' : 'bg-white border-slate-200 text-slate-600'}">
-          <input type="checkbox" id="${inputId}" value="${opt}" ${checked ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" onchange="App.handleProfileChecklistChange('${containerId}')" />
-          <span>${opt}</span>
-        </label>
+        <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border transition-colors ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-medium' : 'bg-white border-slate-200 text-slate-600'}">
+          <label for="${inputId}" class="flex items-center gap-2.5 flex-1 cursor-pointer select-none text-xs">
+            <input type="checkbox" id="${inputId}" value="${opt.replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" onchange="App.handleProfileChecklistChange('${containerId}')" />
+            <span>${opt}</span>
+          </label>
+          ${isCustom ? `<button type="button" onclick="App.removeCustomProfileItem('${categoryKey}', '${escapedOpt}')" class="px-1.5 py-0.5 rounded-md text-[10px] font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50" title="Remove item">✕</button>` : ''}
+        </div>
       `;
     }).join('');
+  },
+
+  addCustomProfileItem(categoryKey) {
+    const inputMap = {
+      equipment: 'custom-equipment-input',
+      fertilisers: 'custom-fertilisers-input',
+      herbicides: 'custom-herbicides-input'
+    };
+    const inputEl = document.getElementById(inputMap[categoryKey]);
+    const val = inputEl ? inputEl.value.trim() : '';
+    if (!val) {
+      this.showToast('Please enter a name to add.');
+      return;
+    }
+    if (inputEl) inputEl.value = '';
+
+    if (!this.profile.customCatalog) this.profile.customCatalog = {};
+    if (!Array.isArray(this.profile.customCatalog[categoryKey])) {
+      this.profile.customCatalog[categoryKey] = [];
+    }
+    if (!this.profile.customCatalog[categoryKey].includes(val)) {
+      this.profile.customCatalog[categoryKey].push(val);
+    }
+
+    if (categoryKey === 'equipment') {
+      if (!Array.isArray(this.profile.equipment)) this.profile.equipment = [];
+      if (!this.profile.equipment.includes(val)) this.profile.equipment.push(val);
+    } else if (categoryKey === 'fertilisers') {
+      if (!Array.isArray(this.profile.fertilisers)) this.profile.fertilisers = [];
+      if (!this.profile.fertilisers.includes(val)) this.profile.fertilisers.push(val);
+    } else if (categoryKey === 'herbicides') {
+      if (!Array.isArray(this.profile.herbicides)) this.profile.herbicides = [];
+      if (!this.profile.herbicides.includes(val)) this.profile.herbicides.push(val);
+    }
+
+    StorageManager.saveProfile(this.profile);
+    this.renderProfileForm();
+    this.handleProfileChange();
+    this.showToast(`✅ Added "${val}" to your profile!`);
+  },
+
+  removeCustomProfileItem(categoryKey, itemName) {
+    if (this.profile.customCatalog && Array.isArray(this.profile.customCatalog[categoryKey])) {
+      this.profile.customCatalog[categoryKey] = this.profile.customCatalog[categoryKey].filter(x => x !== itemName);
+    }
+    if (categoryKey === 'equipment' && Array.isArray(this.profile.equipment)) {
+      this.profile.equipment = this.profile.equipment.filter(x => x !== itemName);
+    } else if (categoryKey === 'fertilisers' && Array.isArray(this.profile.fertilisers)) {
+      this.profile.fertilisers = this.profile.fertilisers.filter(x => x !== itemName);
+    } else if (categoryKey === 'herbicides') {
+      if (Array.isArray(this.profile.herbicides)) {
+        this.profile.herbicides = this.profile.herbicides.filter(x => x !== itemName);
+      }
+      if (Array.isArray(this.profile.specialTreatments)) {
+        this.profile.specialTreatments = this.profile.specialTreatments.filter(x => x !== itemName);
+      }
+    }
+    StorageManager.saveProfile(this.profile);
+    this.renderProfileForm();
+    this.handleProfileChange();
+    this.showToast(`Removed "${itemName}".`);
   },
 
   handleProfileChecklistChange(containerId) {
@@ -2721,6 +2805,7 @@ const App = {
       herbicides: getCheckedValues('herbicides-checklist').filter(h => !h.includes('PGR') && !h.includes('Wetting Agent')),
       specialTreatments: getCheckedValues('herbicides-checklist').filter(h => h.includes('PGR') || h.includes('Wetting Agent')),
       customOwnedProducts: this.profile.customOwnedProducts || [],
+      customCatalog: this.profile.customCatalog || {},
       history: this.profile.history || {}
     };
 
@@ -2755,11 +2840,149 @@ const App = {
   },
 
   renderNotificationStatus() {
-    const statusBadge = document.getElementById('notification-permission-badge');
-    if (!statusBadge) return;
     const granted = NotificationManager.hasPermission();
-    statusBadge.innerText = granted ? 'Active & Enabled' : 'Disabled / Needs Permission';
-    statusBadge.className = `px-2.5 py-1 rounded-full text-xs font-semibold ${granted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`;
+    const statusBadge = document.getElementById('notification-permission-badge');
+    if (statusBadge) {
+      statusBadge.innerText = granted ? 'Active & Enabled' : 'Tap Enable Below';
+      statusBadge.className = `px-2.5 py-1 rounded-full text-xs font-semibold ${granted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`;
+    }
+    const calBtnLabel = document.getElementById('cal-push-btn-label');
+    if (calBtnLabel) {
+      calBtnLabel.innerText = granted ? 'Alerts ON' : 'Push Alerts';
+    }
+  },
+
+  async enableCalendarPushReminders() {
+    const granted = await NotificationManager.requestPermission();
+    this.renderNotificationStatus();
+    if (granted) {
+      const settings = StorageManager.getSettings();
+      settings.remindersEnabled = true;
+      StorageManager.saveSettings(settings);
+      const calData = this.getCalendarSchedule(14);
+      const completedTasks = StorageManager.getCompletedTasks();
+      NotificationManager.sendCalendarTestNotification(calData.days, completedTasks);
+      this.showToast('🔔 Push Notification reminders enabled for your Calendar!');
+    } else {
+      this.showToast('Allow notifications in your phone/browser settings to receive alerts.');
+    }
+  },
+
+  sendTestCalendarNotification() {
+    if (!NotificationManager.hasPermission()) {
+      this.enableCalendarPushReminders();
+      return;
+    }
+    const calData = this.getCalendarSchedule(14);
+    const completedTasks = StorageManager.getCompletedTasks();
+    NotificationManager.sendCalendarTestNotification(calData.days, completedTasks);
+    this.showToast('📲 Sent calendar push notification to your device!');
+  },
+
+  /* ------------------- USER-ADDED CUSTOM CALENDAR ENTRIES ------------------- */
+
+  openAddCalendarEventModal() {
+    const modal = document.getElementById('add-calendar-event-modal');
+    if (!modal) return;
+    const dateInput = document.getElementById('custom-cal-date');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
+    const zoneSelect = document.getElementById('custom-cal-zone');
+    if (zoneSelect) {
+      const zones = StorageManager.getZones();
+      const currentZoneId = this.activeZoneId || 'all';
+      zoneSelect.innerHTML = `
+        <option value="all" ${currentZoneId === 'all' ? 'selected' : ''}>🌿 All Lawn Sections</option>
+        ${zones.map(z => `<option value="${z.id}" ${currentZoneId === z.id ? 'selected' : ''}>📍 ${z.name}</option>`).join('')}
+      `;
+    }
+    modal.classList.remove('hidden');
+  },
+
+  closeAddCalendarEventModal() {
+    const modal = document.getElementById('add-calendar-event-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  async saveUserCalendarEntry() {
+    const titleEl = document.getElementById('custom-cal-title');
+    const catEl = document.getElementById('custom-cal-category');
+    const zoneEl = document.getElementById('custom-cal-zone');
+    const dateEl = document.getElementById('custom-cal-date');
+    const timeEl = document.getElementById('custom-cal-time');
+    const repeatEl = document.getElementById('custom-cal-repeat');
+    const notesEl = document.getElementById('custom-cal-notes');
+    const remindEl = document.getElementById('custom-cal-remind');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    if (!title) {
+      this.showToast('Please enter a title for your calendar entry.');
+      return;
+    }
+
+    const cat = catEl ? catEl.value : 'custom';
+    const catMeta = {
+      mow: { icon: '✂️', color: 'emerald' },
+      water: { icon: '💧', color: 'sky' },
+      feed: { icon: '🌱', color: 'teal' },
+      weed: { icon: '🎯', color: 'amber' },
+      custom: { icon: '🛠️', color: 'indigo' }
+    }[cat] || { icon: '🛠️', color: 'emerald' };
+
+    const timeVal = (timeEl && timeEl.value) ? timeEl.value : '08:00';
+    const [hhStr, mmStr] = timeVal.split(':');
+    const startH = parseInt(hhStr || '8', 10);
+    const startM = parseInt(mmStr || '0', 10);
+    const period = startH >= 12 ? 'pm' : 'am';
+    const h12 = startH % 12 === 0 ? 12 : startH % 12;
+    const timeLabel = `${h12}:${String(startM).padStart(2, '0')} ${period}`;
+
+    const zones = StorageManager.getZones();
+    const zoneId = zoneEl ? zoneEl.value : 'all';
+    const zoneName = zoneId === 'all' ? 'All Sections' : (zones.find(z => z.id === zoneId)?.name || 'Lawn');
+    const notes = notesEl ? notesEl.value.trim() : '';
+    const repeat = repeatEl ? repeatEl.value : 'once';
+    const repeatLabel = repeat === 'weekly' ? 'Weekly' : repeat === 'fortnightly' ? 'Fortnightly' : repeat === 'monthly' ? 'Monthly' : '';
+
+    const subParts = [zoneName];
+    if (repeatLabel) subParts.push(repeatLabel);
+    if (notes) subParts.push(notes);
+
+    const saved = StorageManager.addUserCalendarEvent({
+      title,
+      type: cat,
+      icon: catMeta.icon,
+      color: catMeta.color,
+      zoneId,
+      dateKey: (dateEl && dateEl.value) ? dateEl.value : new Date().toISOString().split('T')[0],
+      timeStr: timeVal,
+      startHour: startH,
+      timeLabel,
+      repeat,
+      subtext: subParts.join(' • '),
+      remindPush: remindEl ? remindEl.checked : true
+    });
+
+    if (titleEl) titleEl.value = '';
+    if (notesEl) notesEl.value = '';
+    this.closeAddCalendarEventModal();
+
+    if (remindEl && remindEl.checked && !NotificationManager.hasPermission()) {
+      await NotificationManager.requestPermission();
+      this.renderNotificationStatus();
+    }
+
+    this.renderDashboard();
+    this.renderTasksList();
+    this.showToast(`📅 Added "${saved.title}" to your Calendar!`);
+  },
+
+  deleteUserCalendarEntry(entryId) {
+    StorageManager.deleteUserCalendarEvent(entryId);
+    this.renderDashboard();
+    this.renderTasksList();
+    this.showToast('🗑️ Removed custom entry from Calendar.');
   },
 
   renderHistory() {

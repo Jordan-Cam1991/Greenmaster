@@ -1028,6 +1028,46 @@ const PlannerEngine = {
       });
     }
 
+    // 6. Inject User-Added Custom Calendar Entries (One-off & Repeating)
+    try {
+      const userEvents = (typeof StorageManager !== 'undefined' && StorageManager.getUserCalendarEvents)
+        ? StorageManager.getUserCalendarEvents()
+        : [];
+      userEvents.forEach(ue => {
+        if (activeZone && ue.zoneId && ue.zoneId !== 'all' && ue.zoneId !== activeZone.id) {
+          return;
+        }
+        const baseDate = new Date(ue.dateKey + 'T00:00:00');
+        dayBuckets.forEach(b => {
+          let matches = false;
+          if (b.dateKey === ue.dateKey) {
+            matches = true;
+          } else if (b.dateObj >= baseDate) {
+            const diffDays = Math.round((b.dateObj - baseDate) / msPerDay);
+            if (ue.repeat === 'weekly' && diffDays > 0 && diffDays % 7 === 0) matches = true;
+            if (ue.repeat === 'fortnightly' && diffDays > 0 && diffDays % 14 === 0) matches = true;
+            if (ue.repeat === 'monthly' && diffDays > 0 && b.dateObj.getDate() === baseDate.getDate()) matches = true;
+          }
+          if (matches) {
+            b.events.push({
+              id: `${ue.id}_${b.dateKey}`,
+              userEntryId: ue.id,
+              dateKey: b.dateKey,
+              type: ue.type || 'custom',
+              icon: ue.icon || '🛠️',
+              title: ue.title,
+              timeLabel: ue.timeLabel || '8:00 – 8:30 am',
+              startHour: Number(ue.startHour ?? 8),
+              subtext: ue.subtext || 'Custom Calendar Entry',
+              color: ue.color || 'emerald'
+            });
+          }
+        });
+      });
+    } catch (e) {
+      console.warn('Error injecting user calendar events', e);
+    }
+
     // Ensure Today always shows a clear status banner if no events fell on Today
     if (dayBuckets[0] && dayBuckets[0].events.length === 0 && !dayBuckets[0].allDayBanner) {
       dayBuckets[0].allDayBanner = `☀️ ${dayBuckets[0].weather.maxTemp}°C — No lawn work needed today!`;

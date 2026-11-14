@@ -579,5 +579,46 @@ const StorageManager = {
     } catch (e) {
       console.error('Error saving tap timer config', e);
     }
+  },
+
+  getUserCalendarEvents() {
+    try {
+      const raw = localStorage.getItem('gm_user_calendar_events');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading user calendar events', e);
+    }
+    return [];
+  },
+
+  addUserCalendarEvent(eventObj) {
+    const list = this.getUserCalendarEvents();
+    const entry = {
+      id: 'ucal_' + Date.now(),
+      title: eventObj.title || 'Custom Lawn Task',
+      type: eventObj.type || 'custom',
+      icon: eventObj.icon || '🛠️',
+      color: eventObj.color || 'emerald',
+      zoneId: eventObj.zoneId || 'all',
+      dateKey: eventObj.dateKey || new Date().toISOString().split('T')[0],
+      timeStr: eventObj.timeStr || '08:00',
+      startHour: Number(eventObj.startHour ?? 8),
+      timeLabel: eventObj.timeLabel || '8:00 – 8:30 am',
+      repeat: eventObj.repeat || 'once', // 'once' | 'weekly' | 'fortnightly' | 'monthly'
+      subtext: eventObj.subtext || 'Custom entry',
+      remindPush: eventObj.remindPush !== false
+    };
+    list.push(entry);
+    localStorage.setItem('gm_user_calendar_events', JSON.stringify(list));
+    return entry;
+  },
+
+  deleteUserCalendarEvent(entryId) {
+    const list = this.getUserCalendarEvents().filter(e => e.id !== entryId);
+    localStorage.setItem('gm_user_calendar_events', JSON.stringify(list));
+    return list;
   }
 };

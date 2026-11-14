@@ -63,13 +63,87 @@ const NotificationManager = {
   },
 
   scheduleWeeklyReminders() {
-    // Schedule periodic reminders via localStorage check or notification triggers
     const settings = StorageManager.getSettings();
     if (!settings.remindersEnabled) return;
 
     const nextReminder = new Date();
     nextReminder.setDate(nextReminder.getDate() + 7);
     localStorage.setItem('gm_next_scan_reminder', nextReminder.toISOString());
+  },
+
+  /**
+   * Checks today's scheduled calendar tasks and fires Push Notifications
+   * for any uncompleted tasks that haven't been notified today.
+   */
+  checkAndFireCalendarReminders(calendarDays = [], completedTasks = {}) {
+    if (!this.hasPermission()) return;
+    const settings = typeof StorageManager !== 'undefined' ? StorageManager.getSettings() : { remindersEnabled: true };
+    if (settings && settings.remindersEnabled === false) return;
+
+    const todayBucket = Array.isArray(calendarDays) ? calendarDays[0] : null;
+    if (!todayBucket || !Array.isArray(todayBucket.events) || todayBucket.events.length === 0) return;
+
+    const notifiedRaw = localStorage.getItem('gm_notified_event_ids') || '{}';
+    let notifiedMap = {};
+    try {
+      notifiedMap = JSON.parse(notifiedRaw);
+    } catch (e) {
+      notifiedMap = {};
+    }
+
+    const nowHour = new Date().getHours();
+    let updated = false;
+
+    todayBucket.events.forEach(ev => {
+      if (completedTasks[ev.id] || notifiedMap[ev.id]) return;
+      const targetHour = Number(ev.startHour ?? 8);
+      // Fire push reminder if the task is due within the next hour or earlier today
+      if (nowHour >= targetHour - 1) {
+        this.showNotification(
+          `${ev.icon || '🌱'} Lawn Reminder: ${ev.title}`,
+          `${ev.timeLabel || 'Today'} — ${ev.subtext || 'Scheduled on your GreenMaster Calendar'}`
+        );
+        notifiedMap[ev.id] = new Date().toISOString();
+        updated = true;
+      }
+    });
+
+    if (updated) {
+      localStorage.setItem('gm_notified_event_ids', JSON.stringify(notifiedMap));
+    }
+  },
+
+  /**
+   * Sends an immediate push notification summarizing the next scheduled calendar item
+   */
+  sendCalendarTestNotification(calendarDays = [], completedTasks = {}) {
+    let nextEv = null;
+    let nextDay = null;
+    if (Array.isArray(calendarDays)) {
+      for (const d of calendarDays) {
+        for (const ev of (d.events || [])) {
+          if (!completedTasks[ev.id]) {
+            nextEv = ev;
+            nextDay = d;
+            break;
+          }
+        }
+        if (nextEv) break;
+      }
+    }
+
+    if (nextEv && nextDay) {
+      const whenTxt = nextDay.isToday ? 'Today' : `${nextDay.dayName} ${nextDay.dayNumber} ${nextDay.monthShort}`;
+      this.showNotification(
+        `🔔 Up Next (${whenTxt}): ${nextEv.icon} ${nextEv.title}`,
+        `${nextEv.timeLabel} • ${nextEv.subtext || 'Tap to view your GreenMaster Calendar'}`
+      );
+    } else {
+      this.showNotification(
+        '🔔 GreenMaster Calendar Reminders Active!',
+        'We will send you push notifications when your scheduled lawn tasks are due.'
+      );
+    }
   },
 
   /**

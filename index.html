@@ -248,16 +248,26 @@
             </div>
           </div>
 
-          <div class="flex items-center gap-1.5 flex-shrink-0">
-            <button type="button" onclick="App.openHolmanTimerModal()" class="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-bold text-[11px] rounded-xl transition-colors flex items-center gap-1 btn-press" title="Sync Holman BX4 Tap Timer">
-              <i data-lucide="droplets" class="w-3.5 h-3.5 text-sky-600"></i>
-              <span>Holman BX4</span>
-            </button>
-            <button id="export-calendar-btn" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl transition-colors flex items-center gap-1 btn-press">
-              <i data-lucide="calendar-plus" class="w-3.5 h-3.5 text-blue-600"></i>
-              <span>Add to Phone</span>
-            </button>
-          </div>
+          <button type="button" onclick="App.openAddCalendarEventModal()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1 flex-shrink-0 btn-press">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Add Entry</span>
+          </button>
+        </div>
+
+        <!-- Quick Action Bar: Holman BX4 | Push Reminders | Export to Phone -->
+        <div class="grid grid-cols-3 gap-1.5">
+          <button type="button" onclick="App.openHolmanTimerModal()" class="py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-bold text-[10px] rounded-xl transition-colors flex items-center justify-center gap-1 btn-press">
+            <i data-lucide="droplets" class="w-3 h-3 text-sky-600"></i>
+            <span>Holman BX4</span>
+          </button>
+          <button type="button" id="cal-push-reminder-btn" onclick="App.enableCalendarPushReminders()" class="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-[10px] rounded-xl transition-colors flex items-center justify-center gap-1 btn-press">
+            <i data-lucide="bell-ring" class="w-3 h-3 text-amber-600"></i>
+            <span id="cal-push-btn-label">Push Alerts</span>
+          </button>
+          <button type="button" id="export-calendar-btn" class="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] rounded-xl transition-colors flex items-center justify-center gap-1 btn-press">
+            <i data-lucide="calendar-plus" class="w-3 h-3 text-blue-600"></i>
+            <span>Sync .ICS</span>
+          </button>
         </div>
 
         <!-- Clean 3-Option Range Selector: Week | Fortnight | Month -->
@@ -539,26 +549,63 @@
         <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">Equipment Owned</label>
-            <span class="text-[10px] text-slate-400">Select all that apply</span>
+            <span class="text-[10px] text-slate-400">Select or add your own</span>
           </div>
           <div id="equipment-checklist" class="grid grid-cols-1 gap-2">
             <!-- Dynamically populated -->
+          </div>
+          <div class="flex items-center gap-2 pt-1">
+            <input type="text" id="custom-equipment-input" placeholder="Add your own equipment (e.g. Lawn Level, Whipper Snipper)..." onkeydown="if(event.key==='Enter'){event.preventDefault();App.addCustomProfileItem('equipment');}" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500">
+            <button type="button" onclick="App.addCustomProfileItem('equipment')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex-shrink-0 btn-press">+ Add</button>
           </div>
         </div>
 
         <!-- Fertilisers & Soil Amendments -->
         <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Fertilisers Owned</label>
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">Fertilisers Owned</label>
+            <span class="text-[10px] text-slate-400">Select or add your own</span>
+          </div>
           <div id="fertilisers-checklist" class="grid grid-cols-1 gap-2">
             <!-- Dynamically populated -->
+          </div>
+          <div class="flex items-center gap-2 pt-1">
+            <input type="text" id="custom-fertilisers-input" placeholder="Add your own fertiliser (e.g. Scotts Lawn Builder, Seasol)..." onkeydown="if(event.key==='Enter'){event.preventDefault();App.addCustomProfileItem('fertilisers');}" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500">
+            <button type="button" onclick="App.addCustomProfileItem('fertilisers')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex-shrink-0 btn-press">+ Add</button>
           </div>
         </div>
 
         <!-- Herbicides, Pre-emergents & PGR -->
         <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Herbicides & Regulators</label>
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">Herbicides & Regulators</label>
+            <span class="text-[10px] text-slate-400">Select or add your own</span>
+          </div>
           <div id="herbicides-checklist" class="grid grid-cols-1 gap-2">
             <!-- Dynamically populated -->
+          </div>
+          <div class="flex items-center gap-2 pt-1">
+            <input type="text" id="custom-herbicides-input" placeholder="Add your own herbicide or PGR (e.g. Sedgehammer, Bin-Die)..." onkeydown="if(event.key==='Enter'){event.preventDefault();App.addCustomProfileItem('herbicides');}" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500">
+            <button type="button" onclick="App.addCustomProfileItem('herbicides')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex-shrink-0 btn-press">+ Add</button>
+          </div>
+        </div>
+
+        <!-- Push Notifications & Calendar Reminders Card -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Calendar Push Notifications</label>
+              <span class="text-[10px] text-slate-400">Get reminded on your phone when lawn tasks are due</span>
+            </div>
+            <span id="notification-permission-badge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Checking...</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="App.enableCalendarPushReminders()" class="py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs rounded-xl transition-all btn-press">
+              🔔 Enable Push Alerts
+            </button>
+            <button type="button" onclick="App.sendTestCalendarNotification()" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all btn-press">
+              📲 Test Reminder Now
+            </button>
           </div>
         </div>
 
@@ -1339,6 +1386,86 @@
         <button type="button" onclick="App.saveHolmanTimerAndClose()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all btn-press">
           ✓ Sync Holman Days to Calendar
         </button>
+      </div>
+    </div>
+
+    <!-- ADD CUSTOM CALENDAR ENTRY MODAL -->
+    <div id="add-calendar-event-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center px-4 app-modal-safe hidden">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-4 space-y-3 shadow-2xl border border-slate-200 max-h-[88vh] overflow-y-auto no-scrollbar">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">Calendar Planner</span>
+            <h3 class="text-base font-extrabold text-slate-900">Add Calendar Entry</h3>
+          </div>
+          <button type="button" onclick="App.closeAddCalendarEventModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs">✕</button>
+        </div>
+
+        <div class="space-y-2.5">
+          <div>
+            <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Task / Entry Title</label>
+            <input type="text" id="custom-cal-title" placeholder="e.g. Spray Bow & Arrow, Mow Front Yard, Topdress..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Category</label>
+              <select id="custom-cal-category" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none">
+                <option value="mow">✂️ Mowing</option>
+                <option value="water">💧 Watering / Soak</option>
+                <option value="feed">🌱 Fertiliser / Feed</option>
+                <option value="weed">🎯 Weed / Herbicide</option>
+                <option value="custom">🛠️ Custom Task</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Lawn Section</label>
+              <select id="custom-cal-zone" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none">
+                <!-- Populated by App.openAddCalendarEventModal() -->
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Date</label>
+              <input type="date" id="custom-cal-date" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none">
+            </div>
+            <div>
+              <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Time</label>
+              <input type="time" id="custom-cal-time" value="08:00" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Repeat</label>
+              <select id="custom-cal-repeat" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none">
+                <option value="once">One-Off</option>
+                <option value="weekly">Every Week (7d)</option>
+                <option value="fortnightly">Every Fortnight (14d)</option>
+                <option value="monthly">Every Month</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Notes / Rate</label>
+              <input type="text" id="custom-cal-notes" placeholder="e.g. 15mL per 1L" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 outline-none">
+            </div>
+          </div>
+
+          <label class="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-950 cursor-pointer">
+            <input type="checkbox" id="custom-cal-remind" checked class="w-4 h-4 accent-amber-600 rounded">
+            <span>🔔 Remind me via Push Notification on due day</span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" onclick="App.closeAddCalendarEventModal()" class="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
+            Cancel
+          </button>
+          <button type="button" onclick="App.saveUserCalendarEntry()" class="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all btn-press">
+            ✓ Save to Calendar
+          </button>
+        </div>
       </div>
     </div>
 
