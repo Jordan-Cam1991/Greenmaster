@@ -8,6 +8,7 @@ const StorageManager = {
     PROFILE: 'gm_lawn_profile',
     ZONES: 'gm_lawn_zones',
     ACTIVE_ZONE: 'gm_active_zone_id',
+    PLANNER_MODE: 'gm_planner_mode',
     PLAN: 'gm_active_plan',
     ZONE_PLANS: 'gm_zone_plans',
     SCAN_HISTORY: 'gm_scan_history',
@@ -125,6 +126,14 @@ const StorageManager = {
 
   setActiveZoneId(id) {
     localStorage.setItem(this.KEYS.ACTIVE_ZONE, id);
+  },
+
+  getPlannerMode() {
+    return localStorage.getItem(this.KEYS.PLANNER_MODE) || 'segmented';
+  },
+
+  setPlannerMode(mode) {
+    localStorage.setItem(this.KEYS.PLANNER_MODE, mode);
   },
 
   getActiveZone() {

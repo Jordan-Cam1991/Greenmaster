@@ -8,6 +8,7 @@ const App = {
   activeTab: 'dashboard',
   activeHorizon: 'oneWeek',
   activeZoneId: 'all',
+  plannerMode: 'segmented',
   scanTargetZoneId: 'front_main',
   stagedPhotosByZone: {},
   modalViewingZoneId: null,
@@ -59,6 +60,7 @@ const App = {
     this.profile = StorageManager.getProfile();
     this.currentPlan = StorageManager.getActivePlan();
     this.activeZoneId = StorageManager.getActiveZoneId();
+    this.plannerMode = StorageManager.getPlannerMode();
 
     if (!this.currentPlan) {
       const initialMetrics = {
@@ -251,6 +253,7 @@ const App = {
           ...zoneResult
         };
       }
+      this.scanTargetZoneId = zoneId;
     } else {
       const savedMasterPlan = StorageManager.getActivePlan();
       if (savedMasterPlan) {
@@ -261,6 +264,21 @@ const App = {
     this.renderZoneBar();
     this.renderDashboard();
     this.renderTasksList();
+    this.renderVisionZoneSelector();
+    this.renderWeatherZones();
+    this.renderAnalytics();
+  },
+
+  setPlannerMode(mode) {
+    this.plannerMode = mode === 'aligned' ? 'aligned' : 'segmented';
+    StorageManager.setPlannerMode(this.plannerMode);
+    this.renderTasksList();
+    this.renderDashboard();
+    this.showToast(
+      this.plannerMode === 'aligned'
+        ? '🔗 Planner set to Align All Zones Together'
+        : '🗂️ Planner set to Segmented by Yard Zone'
+    );
   },
 
   getSectionAnalysisResult(zoneId) {
@@ -268,29 +286,58 @@ const App = {
     const targetZone = zones.find(z => z.id === zoneId) || zones[0];
     if (!targetZone) return this.currentPlan;
 
+    const zoneLogs = StorageManager.getZoneLogs(targetZone.id);
+    const zoneProfile = {
+      ...this.profile,
+      grassType: targetZone.grassType || this.profile.grassType,
+      hoc: targetZone.hoc || this.profile.hoc,
+      lawnArea: targetZone.area || 50,
+      history: {
+        ...(this.profile.history || {}),
+        preEmergentStatus: zoneLogs.preEmergentStatus || this.profile.history?.preEmergentStatus || 'active',
+        lastFertType: zoneLogs.lastFeedProduct || this.profile.history?.lastFertType || 'Liquid Foliar'
+      }
+    };
+
     if (this.latestZoneScanResults && this.latestZoneScanResults[targetZone.id]) {
-      return this.latestZoneScanResults[targetZone.id];
+      const cached = this.latestZoneScanResults[targetZone.id];
+      cached.actionPlan = PlannerEngine.generateDynamicPlan({
+        cvMetrics: {
+          densityPercent: cached.densityScore || 82,
+          avgDgci: cached.darkGreenColorIndex || 78,
+          weedRatio: 0.02,
+          brownRatio: 0.04,
+          healthScore: cached.healthScore || 84
+        },
+        weedLevel: cached.weedPressure || 'Low (<2%)',
+        weeds: cached.weedsDetected || [],
+        diseaseOrStress: cached.diseaseOrStress || 'None detected',
+        hotspots: cached.hotspots || [],
+        profile: zoneProfile,
+        zones: [targetZone],
+        targetZone
+      });
+      return cached;
     }
 
     const storedZonePlan = StorageManager.getZonePlan(targetZone.id);
     if (storedZonePlan) {
-      if (!storedZonePlan.actionPlan) {
-        storedZonePlan.actionPlan = PlannerEngine.generateDynamicPlan({
-          cvMetrics: {
-            densityPercent: storedZonePlan.densityScore || 82,
-            avgDgci: storedZonePlan.darkGreenColorIndex || 78,
-            weedRatio: 0.02,
-            brownRatio: 0.04,
-            healthScore: storedZonePlan.healthScore || 84
-          },
-          weedLevel: storedZonePlan.weedPressure || 'Low (<2%)',
-          weeds: storedZonePlan.weedsDetected || [],
-          diseaseOrStress: storedZonePlan.diseaseOrStress || 'None detected',
-          hotspots: storedZonePlan.hotspots || [],
-          profile: this.profile,
-          zones: [targetZone]
-        });
-      }
+      storedZonePlan.actionPlan = PlannerEngine.generateDynamicPlan({
+        cvMetrics: {
+          densityPercent: storedZonePlan.densityScore || 82,
+          avgDgci: storedZonePlan.darkGreenColorIndex || 78,
+          weedRatio: 0.02,
+          brownRatio: 0.04,
+          healthScore: storedZonePlan.healthScore || 84
+        },
+        weedLevel: storedZonePlan.weedPressure || 'Low (<2%)',
+        weeds: storedZonePlan.weedsDetected || [],
+        diseaseOrStress: storedZonePlan.diseaseOrStress || 'None detected',
+        hotspots: storedZonePlan.hotspots || [],
+        profile: zoneProfile,
+        zones: [targetZone],
+        targetZone
+      });
       return storedZonePlan;
     }
 
@@ -335,8 +382,9 @@ const App = {
       weeds: isRecovery ? ['Broadleaf spot'] : [],
       diseaseOrStress: stressText,
       hotspots: hotspots,
-      profile: this.profile,
-      zones: [targetZone]
+      profile: zoneProfile,
+      zones: [targetZone],
+      targetZone
     });
 
     const baselineVerdict = isRecovery
@@ -412,6 +460,7 @@ const App = {
     this.renderDashboard();
     this.renderTasksList();
     this.renderVisionZoneSelector();
+    this.renderWeatherZones();
     this.renderProfileForm();
     this.renderProfileSections();
     this.renderNotificationStatus();
@@ -703,18 +752,21 @@ const App = {
       lastMowEl.innerText = `${this.formatRelativeTime(zoneLogs.lastMow)}${areaLabel}`;
     }
 
-    // 2. Next Action from Planner
+    // 2. Next Action from Planner (Zone-aware & Aligned/Segmented-aware)
     const nextActionEl = document.getElementById('dash-next-action-text');
     const nextActionSubEl = document.getElementById('dash-next-action-sub');
     const nextActionCatEl = document.getElementById('dash-next-action-cat');
-    const weekTasks = this.currentPlan?.actionPlan?.oneWeek || [];
+    const weekTasks = this.getActiveHorizonTasksList('oneWeek');
     const completedTasks = StorageManager.getCompletedTasks();
-    const nextPendingTask = weekTasks.find(t => !completedTasks[`oneWeek_${t.id || 0}`]) || weekTasks[0];
+    const nextPendingTask = weekTasks.find((t, i) => !completedTasks[`oneWeek_${t.id || i}`]) || weekTasks[0];
 
     if (nextPendingTask) {
       if (nextActionEl) nextActionEl.innerText = nextPendingTask.task;
-      if (nextActionSubEl) nextActionSubEl.innerText = nextPendingTask.tip ? `Tip: ${nextPendingTask.tip.slice(0, 80)}...` : 'Next on your weekly schedule';
-      if (nextActionCatEl) nextActionCatEl.innerText = `${nextPendingTask.category} • ${nextPendingTask.urgency} Urgency`;
+      if (nextActionSubEl) {
+        const zTag = nextPendingTask.zoneName ? `[${nextPendingTask.zoneName}] ` : '';
+        nextActionSubEl.innerText = nextPendingTask.tip ? `${zTag}${nextPendingTask.tip.slice(0, 85)}...` : `${zTag}Next on your weekly schedule`;
+      }
+      if (nextActionCatEl) nextActionCatEl.innerText = `${nextPendingTask.category} • ${nextPendingTask.urgency}`;
     }
 
     // 3. Fertiliser & Nutrition Level
@@ -828,37 +880,119 @@ const App = {
     this.showToast(`🧪 Lawn food logged for ${zoneName}!`);
   },
 
-  renderTasksList() {
-    const container = document.getElementById('tasks-container');
-    if (!container || !this.currentPlan || !this.currentPlan.actionPlan) return;
-
-    const horizonMap = {
-      oneWeek: { label: 'Next Week (7 Days)', sub: 'Immediate precision tasks' },
-      twoWeeks: { label: 'Two Weeks (14 Days)', sub: 'Short-term feeding & turf grooming' },
-      oneMonth: { label: 'One Month (30 Days)', sub: 'Soil conditioning & equipment maintenance' },
-      oneQuarter: { label: 'One Quarter (3 Months)', sub: 'Seasonal barrier & levelling' },
-      halfYear: { label: 'Half Year (6 Months)', sub: 'Mid-year aeration & dethatching' },
-      oneYear: { label: 'Full Year (12 Months)', sub: 'Master annual renovation & soil test' }
-    };
-
-    const currentHorizonInfo = horizonMap[this.activeHorizon];
-    const titleEl = document.getElementById('current-horizon-title');
-    const subEl = document.getElementById('current-horizon-sub');
-    if (titleEl) titleEl.innerText = currentHorizonInfo.label;
-    if (subEl) subEl.innerText = currentHorizonInfo.sub;
-
-    const tasks = this.currentPlan.actionPlan[this.activeHorizon] || [];
-    const completedTasks = StorageManager.getCompletedTasks();
-
-    if (tasks.length === 0) {
-      container.innerHTML = `
-        <div class="text-center py-12 text-slate-400">
-          <p class="text-sm">No tasks pending for this timeframe. Blade says take a break! ☕</p>
-        </div>
-      `;
-      return;
+  getActiveHorizonTasksList(horizon = 'oneWeek') {
+    const zones = StorageManager.getZones();
+    if (this.activeZoneId !== 'all') {
+      const targetZone = zones.find(z => z.id === this.activeZoneId) || zones[0];
+      const zRes = targetZone ? this.getSectionAnalysisResult(targetZone.id) : this.currentPlan;
+      return zRes?.actionPlan?.[horizon] || [];
     }
 
+    if (this.plannerMode === 'aligned') {
+      const zoneResultsMap = {};
+      zones.forEach(z => {
+        zoneResultsMap[z.id] = this.getSectionAnalysisResult(z.id);
+      });
+      const alignedPlan = PlannerEngine.generateAlignedPropertyPlan({
+        profile: this.profile,
+        zones,
+        zoneResultsMap
+      });
+      return alignedPlan[horizon] || [];
+    }
+
+    // Segmented mode across all zones: concatenate each zone's tasks
+    let allSegmentedTasks = [];
+    zones.forEach(z => {
+      const zRes = this.getSectionAnalysisResult(z.id);
+      const zTasks = zRes?.actionPlan?.[horizon] || [];
+      allSegmentedTasks = allSegmentedTasks.concat(zTasks);
+    });
+    return allSegmentedTasks;
+  },
+
+  renderPlannerZoneBar() {
+    const segBtn = document.getElementById('planner-mode-segmented-btn');
+    const alignBtn = document.getElementById('planner-mode-aligned-btn');
+    const zoneBar = document.getElementById('planner-zone-selector');
+    const specBanner = document.getElementById('planner-zone-spec-banner');
+
+    const isAligned = this.plannerMode === 'aligned';
+    if (segBtn && alignBtn) {
+      segBtn.className = `px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${!isAligned ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`;
+      alignBtn.className = `px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${isAligned ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`;
+    }
+
+    const zones = StorageManager.getZones();
+    const attentionBadges = {
+      'showpiece': '⭐ Showpiece',
+      'recovery': '🔥 Recovery',
+      'standard': '🌿 Standard',
+      'low': '🛋️ Low-Key'
+    };
+
+    if (zoneBar) {
+      zoneBar.innerHTML = `
+        <button type="button" onclick="App.switchZone('all')" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${this.activeZoneId === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+          <span>🌿 All Yard Zones (${zones.length})</span>
+        </button>
+        ${zones.map(z => `
+          <button type="button" onclick="App.switchZone('${z.id}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${this.activeZoneId === z.id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+            <span>📍 ${z.name}</span>
+            <span class="text-[9px] px-1.5 py-0.2 rounded-full ${this.activeZoneId === z.id ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'}">${z.hoc}mm</span>
+          </button>
+        `).join('')}
+      `;
+    }
+
+    if (specBanner) {
+      if (this.activeZoneId !== 'all') {
+        const activeZone = zones.find(z => z.id === this.activeZoneId) || zones[0];
+        const zRes = activeZone ? this.getSectionAnalysisResult(activeZone.id) : null;
+        if (activeZone) {
+          specBanner.innerHTML = `
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <span class="font-extrabold text-emerald-950">📍 ${activeZone.name}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200">${attentionBadges[activeZone.attentionLevel] || '🌿 Standard'}</span>
+              </div>
+              <span class="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">${zRes ? zRes.healthScore : 85}% Health</span>
+            </div>
+            <div class="text-[11px] text-emerald-800 mt-1 flex items-center gap-2 flex-wrap font-medium">
+              <span>🌱 ${activeZone.grassType}</span>
+              <span>•</span>
+              <span>✂️ Target HOC: <strong>${activeZone.hoc}mm</strong></span>
+              <span>•</span>
+              <span>☀️ ${activeZone.sunExposure}</span>
+              <span>•</span>
+              <span>📐 ${activeZone.area || 50}m²</span>
+            </div>
+          `;
+        }
+      } else if (isAligned) {
+        const totalArea = zones.reduce((s, z) => s + (Number(z.area) || 50), 0);
+        specBanner.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-emerald-950">🔗 Aligned Mode (All ${zones.length} Yard Zones Together • ${totalArea}m²)</span>
+          </div>
+          <p class="text-[11px] text-emerald-800 mt-0.5 leading-snug">
+            Shared feeds, wetting agents & weed barriers are combined into single sessions, while zone-specific cut heights (${zones.map(z => `${z.name}: ${z.hoc}mm`).join(', ')}) are badged on each task.
+          </p>
+        `;
+      } else {
+        specBanner.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-emerald-950">🗂️ Segmented Mode (${zones.length} Individual Yard Zones)</span>
+          </div>
+          <p class="text-[11px] text-emerald-800 mt-0.5 leading-snug">
+            Tasks below are separated by each yard section with its exact cut height & sun requirements — ideal if you mow or treat different areas on different days!
+          </p>
+        `;
+      }
+    }
+  },
+
+  renderSingleTaskCard(task, idx, completedTasks) {
     const urgencyColors = {
       'Critical': 'bg-rose-100 text-rose-700 border-rose-200',
       'High': 'bg-amber-100 text-amber-800 border-amber-200',
@@ -879,47 +1013,171 @@ const App = {
       'Levelling': '⛳'
     };
 
-    let completedCount = 0;
+    const taskId = `${this.activeHorizon}_${task.id || idx}`;
+    const isDone = !!completedTasks[taskId];
+    const hasShopLink = task.tip && task.tip.includes('lawntips.com');
 
-    container.innerHTML = tasks.map((task, idx) => {
-      const taskId = `${this.activeHorizon}_${task.id || idx}`;
-      const isDone = !!completedTasks[taskId];
-      if (isDone) completedCount++;
+    const zoneBadgeText = task.zoneName || 'All Yard Zones';
+    const isSpecificZone = task.zoneId && task.zoneId !== 'all';
 
-      const hasShopLink = task.tip && task.tip.includes('lawntips.com');
+    return `
+      <div class="p-4 rounded-2xl border transition-all ${isDone ? 'bg-slate-50/70 border-slate-200 opacity-60' : 'bg-white border-slate-200 shadow-sm hover:border-emerald-300'}">
+        <div class="flex items-start gap-3">
+          <input type="checkbox" id="${taskId}" class="task-checkbox mt-1 w-5 h-5 rounded-md text-emerald-600 focus:ring-emerald-500 cursor-pointer" ${isDone ? 'checked' : ''} onchange="App.handleTaskToggle('${taskId}')" />
+          <div class="flex-1 min-w-0">
+            <!-- Yard Zone Requirement Pill Row -->
+            <div class="flex items-center justify-between gap-2 mb-1 flex-wrap">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${isSpecificZone ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-teal-50 text-teal-800 border border-teal-200'}">
+                <span>${isSpecificZone ? '📍' : '🔗'} ${zoneBadgeText}</span>
+                ${task.zoneSpec ? `<span class="text-slate-400 font-normal">• ${task.zoneSpec}</span>` : ''}
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border ${urgencyColors[task.urgency] || urgencyColors['Medium']}">
+                ${task.urgency}
+              </span>
+            </div>
 
-      return `
-        <div class="p-4 rounded-2xl border transition-all ${isDone ? 'bg-slate-50/70 border-slate-200 opacity-60' : 'bg-white border-slate-200 shadow-sm hover:border-emerald-300'}">
-          <div class="flex items-start gap-3">
-            <input type="checkbox" id="${taskId}" class="task-checkbox mt-1 w-5 h-5 rounded-md text-emerald-600 focus:ring-emerald-500 cursor-pointer" ${isDone ? 'checked' : ''} onchange="App.handleTaskToggle('${taskId}')" />
-            <div class="flex-1">
-              <div class="flex items-center justify-between gap-2">
-                <label for="${taskId}" class="font-medium text-slate-800 text-sm cursor-pointer select-none">
-                  ${categoryIcons[task.category] || '🌿'} ${task.task}
-                </label>
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border ${urgencyColors[task.urgency] || urgencyColors['Medium']}">
-                  ${task.urgency}
-                </span>
-              </div>
-              ${task.tip ? `
-                <p class="text-xs text-slate-500 mt-1.5 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  <span class="font-semibold text-emerald-700">Blade's Tip:</span> ${task.tip}
-                  ${hasShopLink ? `
-                    <a href="https://lawntips.com" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline bg-emerald-100/60 px-2 py-1 rounded-md">
-                      <span>Explore on lawntips.com</span>
-                      <i data-lucide="external-link" class="w-3 h-3"></i>
-                    </a>
-                  ` : ''}
-                </p>
-              ` : ''}
-              <div class="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
-                <span>Category: <strong>${task.category}</strong></span>
-              </div>
+            <label for="${taskId}" class="font-bold text-slate-800 text-sm cursor-pointer select-none block leading-snug">
+              ${categoryIcons[task.category] || '🌿'} ${task.task}
+            </label>
+
+            ${task.tip ? `
+              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <span class="font-semibold text-emerald-700">Blade's Tip:</span> ${task.tip}
+                ${hasShopLink ? `
+                  <a href="https://lawntips.com" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline bg-emerald-100/60 px-2 py-1 rounded-md">
+                    <span>Explore on lawntips.com</span>
+                    <i data-lucide="external-link" class="w-3 h-3"></i>
+                  </a>
+                ` : ''}
+              </p>
+            ` : ''}
+            <div class="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
+              <span>Category: <strong>${task.category}</strong></span>
             </div>
           </div>
         </div>
+      </div>
+    `;
+  },
+
+  renderTasksList() {
+    this.renderPlannerZoneBar();
+
+    const container = document.getElementById('tasks-container');
+    if (!container) return;
+
+    const horizonMap = {
+      oneWeek: { label: 'Next Week (7 Days)', sub: 'Immediate precision tasks tailored by yard zone' },
+      twoWeeks: { label: 'Two Weeks (14 Days)', sub: 'Short-term feeding & turf grooming' },
+      oneMonth: { label: 'One Month (30 Days)', sub: 'Soil conditioning & equipment maintenance' },
+      oneQuarter: { label: 'One Quarter (3 Months)', sub: 'Seasonal barrier & levelling' },
+      halfYear: { label: 'Half Year (6 Months)', sub: 'Mid-year aeration & dethatching' },
+      oneYear: { label: 'Full Year (12 Months)', sub: 'Master annual renovation & soil test' }
+    };
+
+    const currentHorizonInfo = horizonMap[this.activeHorizon] || horizonMap.oneWeek;
+    const titleEl = document.getElementById('current-horizon-title');
+    const subEl = document.getElementById('current-horizon-sub');
+    if (titleEl) titleEl.innerText = currentHorizonInfo.label;
+    if (subEl) subEl.innerText = currentHorizonInfo.sub;
+
+    const zones = StorageManager.getZones();
+    const completedTasks = StorageManager.getCompletedTasks();
+
+    // Case 1: Viewing All Yard Zones in Segmented Mode -> Render grouped by each Yard Zone
+    if (this.activeZoneId === 'all' && this.plannerMode === 'segmented' && zones.length > 0) {
+      let totalTasksCount = 0;
+      let totalCompletedCount = 0;
+
+      const attentionBadges = {
+        'showpiece': { label: '⭐ Showpiece', cls: 'bg-emerald-100 text-emerald-800' },
+        'recovery': { label: '🔥 Recovery / TLC', cls: 'bg-amber-100 text-amber-800' },
+        'standard': { label: '🌿 Standard', cls: 'bg-slate-100 text-slate-700' },
+        'low': { label: '🛋️ Low-Key', cls: 'bg-slate-100 text-slate-500' }
+      };
+
+      container.innerHTML = zones.map(z => {
+        const zRes = this.getSectionAnalysisResult(z.id);
+        const zTasks = zRes?.actionPlan?.[this.activeHorizon] || [];
+        const badge = attentionBadges[z.attentionLevel] || attentionBadges.standard;
+
+        let zoneDone = 0;
+        zTasks.forEach((t, idx) => {
+          totalTasksCount++;
+          if (completedTasks[`${this.activeHorizon}_${t.id || idx}`]) {
+            zoneDone++;
+            totalCompletedCount++;
+          }
+        });
+
+        return `
+          <div class="bg-slate-100/80 p-3 rounded-3xl border border-slate-200/90 space-y-2.5">
+            <!-- Yard Zone Segment Header -->
+            <div class="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-extrabold text-slate-900 text-xs">📍 ${z.name}</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.cls}">${badge.label}</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">${zRes ? zRes.healthScore : 85}% Health</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  <span>🌱 ${z.grassType}</span>
+                  <span>•</span>
+                  <strong class="text-slate-700">Cut @ ${z.hoc}mm</strong>
+                  <span>•</span>
+                  <span>☀️ ${z.sunExposure}</span>
+                  <span>•</span>
+                  <span>${z.area || 50}m²</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">${zoneDone}/${zTasks.length} Done</span>
+                <button type="button" onclick="App.switchZone('${z.id}')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200">
+                  Focus
+                </button>
+              </div>
+            </div>
+
+            <!-- Tasks for this specific Yard Zone -->
+            <div class="space-y-2">
+              ${zTasks.map((task, idx) => this.renderSingleTaskCard(task, idx, completedTasks)).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const progressEl = document.getElementById('horizon-progress-bar');
+      const progressText = document.getElementById('horizon-progress-text');
+      const percent = totalTasksCount > 0 ? Math.round((totalCompletedCount / totalTasksCount) * 100) : 0;
+      if (progressEl) progressEl.style.width = `${percent}%`;
+      if (progressText) progressText.innerText = `${totalCompletedCount} of ${totalTasksCount} Completed Across ${zones.length} Zones (${percent}%)`;
+
+      if (window.lucide) {
+        setTimeout(() => lucide.createIcons(), 10);
+      }
+      return;
+    }
+
+    // Case 2: Aligned Mode across all zones OR filtered to a single specific Yard Zone
+    const tasks = this.getActiveHorizonTasksList(this.activeHorizon);
+
+    if (tasks.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-12 text-slate-400">
+          <p class="text-sm">No tasks pending for this timeframe. Blade says take a break! ☕</p>
+        </div>
       `;
-    }).join('');
+      return;
+    }
+
+    let completedCount = 0;
+    tasks.forEach((task, idx) => {
+      if (completedTasks[`${this.activeHorizon}_${task.id || idx}`]) {
+        completedCount++;
+      }
+    });
+
+    container.innerHTML = tasks.map((task, idx) => this.renderSingleTaskCard(task, idx, completedTasks)).join('');
 
     const progressEl = document.getElementById('horizon-progress-bar');
     const progressText = document.getElementById('horizon-progress-text');
@@ -1853,6 +2111,19 @@ const App = {
           ${totalPhotosCount > 0 ? `<div class="pt-1 text-[10px] font-bold text-emerald-900">• 📸 Queued ${totalPhotosCount} photo${totalPhotosCount === 1 ? '' : 's'} for instant AI inspection when you tap "Let's Grow!"</div>` : ''}
           <div class="pt-1 text-[10px] text-emerald-700">• Pre-Emergent: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Urgent Application'}</strong></div>
         </div>
+        <div class="pt-2 mt-1 border-t border-emerald-200/80 space-y-1.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-900 block">Action Planner Schedule Style:</span>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button type="button" onclick="App.setPlannerMode('segmented'); App.renderConsultationSummary();" class="p-2 rounded-xl border text-left transition-all ${this.plannerMode !== 'aligned' ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs' : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100/50'}">
+              <span class="text-[11px] font-bold block">🗂️ Segmented by Zone</span>
+              <span class="text-[9px] opacity-85 block">Separate tasks per yard area</span>
+            </button>
+            <button type="button" onclick="App.setPlannerMode('aligned'); App.renderConsultationSummary();" class="p-2 rounded-xl border text-left transition-all ${this.plannerMode === 'aligned' ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs' : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100/50'}">
+              <span class="text-[11px] font-bold block">🔗 Align All Together</span>
+              <span class="text-[9px] opacity-85 block">Combine shared yard treatments</span>
+            </button>
+          </div>
+        </div>
       </div>
     `;
     diagContainer.innerHTML = diagnosisHTML;
@@ -2305,23 +2576,128 @@ const App = {
     }).join('');
   },
 
+  renderWeatherZones() {
+    const container = document.getElementById('weather-zones-list');
+    if (!container) return;
+    const zones = StorageManager.getZones();
+    const skipRain = this.weather?.shouldSkipSprinklers;
+
+    container.innerHTML = zones.map(z => {
+      const isShaded = (z.sunExposure || '').toLowerCase().includes('shade');
+      const isRecovery = z.attentionLevel === 'recovery';
+      const isSelected = this.activeZoneId === z.id;
+      const zoneLogs = StorageManager.getZoneLogs(z.id);
+
+      let waterAdvice = 'Standard 12mm dawn soak (100% runtime)';
+      if (skipRain) {
+        waterAdvice = '🌧️ Skip Sprinklers (Rain forecast covers this zone)';
+      } else if (isRecovery) {
+        waterAdvice = '🩹 Priority Wetting Agent + 15mm Deep Root Soak';
+      } else if (isShaded) {
+        waterAdvice = '⛅ Reduce Runtime by 25% (Shade retains moisture)';
+      }
+
+      return `
+        <div onclick="App.switchZone('${z.id}')" class="p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${isSelected ? 'bg-sky-50 border-sky-300 shadow-2xs' : 'bg-slate-50 border-slate-200 hover:border-sky-200'}">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <strong class="text-slate-900">${z.name}</strong>
+              <span class="text-[10px] px-2 py-0.2 rounded-full bg-white border border-slate-200 text-slate-600">${z.sunExposure}</span>
+            </div>
+            <p class="text-[11px] text-sky-800 font-medium mt-0.5">${waterAdvice}</p>
+            <span class="text-[10px] text-slate-400 block mt-0.5">Last watered: ${this.formatRelativeTime(zoneLogs.lastWater)}</span>
+          </div>
+          <button type="button" onclick="event.stopPropagation(); StorageManager.logWater('${z.id}'); App.renderDashboard(); App.renderWeatherZones(); App.showToast('💧 Logged watering for ${z.name.replace(/'/g, "\\'")}!');" class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[10px] flex-shrink-0">
+            + Log Water
+          </button>
+        </div>
+      `;
+    }).join('');
+  },
+
   renderAnalytics() {
-    const area = this.profile.lawnArea || 250;
+    const zones = StorageManager.getZones();
+    const activeZone = this.activeZoneId !== 'all' ? zones.find(z => z.id === this.activeZoneId) : null;
+
+    const selectorEl = document.getElementById('analytics-zone-selector');
+    const activeLabelEl = document.getElementById('analytics-active-zone-label');
+    const breakdownEl = document.getElementById('analytics-zones-breakdown');
+
+    if (activeLabelEl) {
+      activeLabelEl.innerText = activeZone ? activeZone.name : `All ${zones.length} Yard Zones`;
+    }
+
+    if (selectorEl) {
+      selectorEl.innerHTML = `
+        <button type="button" onclick="App.switchZone('all')" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${this.activeZoneId === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+          <span>🌿 All Sections</span>
+        </button>
+        ${zones.map(z => `
+          <button type="button" onclick="App.switchZone('${z.id}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${this.activeZoneId === z.id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+            <span>📍 ${z.name}</span>
+          </button>
+        `).join('')}
+      `;
+    }
+
+    const totalZonesArea = zones.reduce((s, z) => s + (Number(z.area) || 50), 0);
+    const area = activeZone ? (Number(activeZone.area) || 50) : (totalZonesArea || this.profile.lawnArea || 250);
     const tier = this.profile.tier;
-    const targetNPerM2 = tier === 'full_pro' ? 18 : tier === 'semi_pro' ? 12 : 7;
-    const totalAnnualN = Math.round((targetNPerM2 * area) / 1000);
+    const targetNPerM2 = activeZone
+      ? (activeZone.attentionLevel === 'showpiece' ? 20 : activeZone.attentionLevel === 'recovery' ? 16 : 12)
+      : (tier === 'full_pro' ? 18 : tier === 'semi_pro' ? 12 : 7);
+    const totalAnnualN = ((targetNPerM2 * area) / 1000).toFixed(2);
 
     const nBudgetEl = document.getElementById('metric-n-budget');
-    if (nBudgetEl) nBudgetEl.innerText = `${totalAnnualN} kg N / Year`;
+    if (nBudgetEl) nBudgetEl.innerText = `${totalAnnualN} kg N / Yr (${area}m²)`;
 
     const mowingFreqEl = document.getElementById('metric-mow-freq');
     if (mowingFreqEl) {
-      mowingFreqEl.innerText = tier === 'full_pro' ? '2 - 3x per week' : tier === 'semi_pro' ? '1 - 2x per week' : 'Every 2 - 3 weeks';
+      if (activeZone) {
+        mowingFreqEl.innerText = activeZone.attentionLevel === 'showpiece'
+          ? '2 - 3x / week'
+          : activeZone.attentionLevel === 'low'
+          ? 'Every 10 - 14d'
+          : '1 - 2x / week';
+      } else {
+        mowingFreqEl.innerText = tier === 'full_pro' ? '2 - 3x per week' : tier === 'semi_pro' ? '1 - 2x per week' : 'Every 2 - 3 weeks';
+      }
     }
 
+    const hocVal = activeZone ? activeZone.hoc : this.profile.hoc;
     const hocEl = document.getElementById('metric-hoc');
     if (hocEl) {
-      hocEl.innerText = `${this.profile.hoc} mm (${(this.profile.hoc / 25.4).toFixed(2)}")`;
+      hocEl.innerText = `${hocVal} mm (${(hocVal / 25.4).toFixed(2)}")`;
+    }
+
+    if (breakdownEl) {
+      breakdownEl.innerHTML = zones.map(z => {
+        const zArea = Number(z.area) || 50;
+        const zNRate = z.attentionLevel === 'showpiece' ? 20 : z.attentionLevel === 'recovery' ? 16 : 12;
+        const zAnnualKg = ((zNRate * zArea) / 1000).toFixed(2);
+        const zRes = this.getSectionAnalysisResult(z.id);
+        const isCurrent = this.activeZoneId === z.id;
+        return `
+          <div onclick="App.switchZone('${z.id}')" class="p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${isCurrent ? 'bg-emerald-50 border-emerald-300 shadow-2xs' : 'bg-slate-50 border-slate-200 hover:border-emerald-200'}">
+            <div class="space-y-0.5 min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <strong class="text-slate-900">📍 ${z.name}</strong>
+                <span class="text-[10px] font-bold px-2 py-0.2 rounded-full bg-white border border-slate-200 text-slate-700">${z.grassType}</span>
+              </div>
+              <div class="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+                <span>Cut: <strong>${z.hoc}mm</strong></span>
+                <span>•</span>
+                <span>Area: <strong>${zArea}m²</strong></span>
+                <span>•</span>
+                <span>N Budget: <strong>${zAnnualKg}kg/yr</strong></span>
+              </div>
+            </div>
+            <span class="px-2 py-1 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-[11px] flex-shrink-0">
+              ${zRes ? zRes.healthScore : 85}%
+            </span>
+          </div>
+        `;
+      }).join('');
     }
   },
 

@@ -271,6 +271,42 @@
 
     <!-- TAB 2: PLANNER VIEW -->
     <main id="view-planner" class="tab-view hidden p-4 space-y-4">
+      <!-- Yard Zone Filter & Aligned vs Segmented Schedule Toggle -->
+      <div class="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Schedule Organization</span>
+            <span class="text-[10px] text-slate-400">Align all zones together or segment by yard area</span>
+          </div>
+          <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 flex-shrink-0">
+            <button type="button" id="planner-mode-segmented-btn" onclick="App.setPlannerMode('segmented')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all bg-emerald-600 text-white shadow-2xs">
+              🗂️ Segmented
+            </button>
+            <button type="button" id="planner-mode-aligned-btn" onclick="App.setPlannerMode('aligned')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all text-slate-600 hover:text-slate-900">
+              🔗 Align All
+            </button>
+          </div>
+        </div>
+
+        <!-- Yard Zone Pills in Planner -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Filter by Yard Zone</span>
+            <button type="button" onclick="App.openSectionAnalysisModal()" class="text-[10px] font-bold text-emerald-700 hover:underline">
+              Compare Zone Health →
+            </button>
+          </div>
+          <div id="planner-zone-selector" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <!-- Dynamically rendered by App.renderPlannerZoneBar() -->
+          </div>
+        </div>
+
+        <!-- Specific Zone Requirement Summary Banner -->
+        <div id="planner-zone-spec-banner" class="p-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-emerald-950">
+          <!-- Dynamically updated with zone grass, HOC, sun exposure & mode info -->
+        </div>
+      </div>
+
       <!-- Horizon Multi-tab Pill Bar -->
       <div class="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
@@ -472,6 +508,17 @@
 
       <!-- Irrigation Wisdom -->
       <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Watering by Yard Zone</span>
+          <span class="text-[10px] text-slate-400">Tap zone to focus</span>
+        </div>
+        <div id="weather-zones-list" class="space-y-2">
+          <!-- Dynamically populated by App.renderWeatherZones() -->
+        </div>
+      </div>
+
+      <!-- Smart Sprinkler Guidelines -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
         <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Smart Sprinkler Guidelines</span>
         <div class="space-y-2.5 text-xs text-slate-600">
           <div class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
@@ -628,7 +675,18 @@
     <main id="view-analytics" class="tab-view hidden p-4 space-y-4">
       <div class="text-center space-y-1">
         <h2 class="text-lg font-bold text-slate-900">Turf Agronomy & Metrics</h2>
-        <p class="text-xs text-slate-500">Calculated metrics based on your area, grass type, and maintenance tier</p>
+        <p class="text-xs text-slate-500">Toggle between yard zones or inspect full-property totals</p>
+      </div>
+
+      <!-- Analytics Zone Toggle Bar -->
+      <div class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Select Yard Zone for Agronomy Metrics</span>
+          <span id="analytics-active-zone-label" class="text-[10px] font-bold text-emerald-700">All Sections</span>
+        </div>
+        <div id="analytics-zone-selector" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Dynamically populated by App.renderAnalytics() -->
+        </div>
       </div>
 
       <!-- Metrics Cards Grid -->
@@ -667,6 +725,17 @@
           </div>
           <span class="text-xl font-extrabold text-slate-900">13°C (55°F)</span>
           <p class="text-[10px] text-slate-400 mt-1">Soil temp threshold to lock out summer weeds</p>
+        </div>
+      </div>
+
+      <!-- Per-Zone Agronomy & Requirements Breakdown -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Yard Zone Requirements Breakdown</span>
+          <span class="text-[10px] text-slate-400">Tap zone to inspect</span>
+        </div>
+        <div id="analytics-zones-breakdown" class="space-y-2">
+          <!-- Dynamically populated by App.renderAnalytics() -->
         </div>
       </div>
     </main>

@@ -238,7 +238,7 @@ const VisionEngine = {
       verdict += `Good overall coverage with active lateral growth. Regular mowing and scheduled spoon-feeding will sharpen density.`;
     }
 
-    // Dynamic multi-horizon action plan
+    // Dynamic multi-horizon action plan tailored to this specific zone & its pinpointed hotspots
     const actionPlan = PlannerEngine.generateDynamicPlan({
       cvMetrics: {
         densityPercent: avgDensity,
@@ -250,29 +250,10 @@ const VisionEngine = {
       weedLevel,
       weeds,
       diseaseOrStress,
+      hotspots,
       profile,
-      zones: StorageManager.getZones()
-    });
-
-    // If hotspots were detected, inject immediate hotspot tasks into Week 1
-    hotspots.forEach((h, idx) => {
-      if (h.type === 'drought_patch') {
-        actionPlan.oneWeek.unshift({
-          id: `w1_hotspot_drought_${idx}`,
-          task: `Targeted Wetting Agent Soak for ${sectionName} (${h.label.split(':')[0]})`,
-          urgency: 'Critical',
-          category: 'Watering',
-          tip: `Photo analysis pinpointed a severe dry spot in ${h.photoNum}. Drench this specific patch with soil surfactant and 15mm water to restore moisture permeability.`
-        });
-      } else if (h.type === 'weed_cluster') {
-        actionPlan.oneWeek.unshift({
-          id: `w1_hotspot_weed_${idx}`,
-          task: `Spot Spray Weed Cluster in ${sectionName} (${h.label.split(':')[0]})`,
-          urgency: 'High',
-          category: 'Weed Control',
-          tip: `Photo analysis isolated a weed cluster in ${h.photoNum}. Use selective herbicide directly on this cluster rather than blanketing the whole lawn.`
-        });
-      }
+      zones: zoneInfo ? [zoneInfo] : StorageManager.getZones(),
+      targetZone: zoneInfo || null
     });
 
     return {
