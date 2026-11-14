@@ -451,8 +451,8 @@ const App = {
     document.querySelectorAll('[data-horizon]').forEach(btn => {
       const active = btn.getAttribute('data-horizon') === horizon;
       btn.className = active
-        ? 'horizon-tab active py-2 rounded-xl text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs'
-        : 'horizon-tab py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:text-slate-900';
+        ? 'horizon-tab active py-1.5 rounded-lg text-[11px] font-bold transition-all bg-white text-slate-900 shadow-2xs'
+        : 'horizon-tab py-1.5 rounded-lg text-[11px] font-bold transition-all text-slate-600 hover:text-slate-900';
     });
     this.renderTasksList();
   },
@@ -893,9 +893,9 @@ const App = {
     if (banner && verdictEl) {
       verdictEl.innerText = this.weather.rainVerdict;
       if (this.weather.shouldSkipSprinklers) {
-        banner.className = 'p-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-md flex items-center gap-3 cursor-pointer';
+        banner.className = 'p-2.5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sm flex items-center gap-2.5 cursor-pointer';
       } else {
-        banner.className = 'p-3.5 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 flex items-center gap-3 cursor-pointer';
+        banner.className = 'p-2.5 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 flex items-center gap-2.5 cursor-pointer';
       }
     }
 
@@ -1054,11 +1054,11 @@ const App = {
 
     container.innerHTML = visibleDays.map(day => {
       const weekDividerHtml = day.weekHeader
-        ? `<div class="pt-3 pb-1 pl-13 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-t border-slate-100">${day.weekHeader}</div>`
+        ? `<div class="pt-2 pb-0.5 pl-11 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-t border-slate-100">${day.weekHeader}</div>`
         : '';
 
       const allDayBannerHtml = day.allDayBanner
-        ? `<div class="px-3 py-1.5 rounded-xl text-xs font-bold ${day.isRainy ? 'bg-amber-300/90 text-slate-900' : 'bg-slate-100 text-slate-700'}">
+        ? `<div class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${day.isRainy ? 'bg-amber-300/90 text-slate-900' : 'bg-slate-100 text-slate-700'}">
              ${day.allDayBanner}
            </div>`
         : '';
@@ -1069,12 +1069,12 @@ const App = {
 
         if (isDone) {
           return `
-            <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-3 rounded-2xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-between gap-2 cursor-pointer transition-all">
+            <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-between gap-2 cursor-pointer transition-all">
               <div class="min-w-0">
                 <div class="text-xs font-bold line-through truncate">${ev.icon} ${ev.title}</div>
-                <div class="text-[11px] line-through">${ev.timeLabel} • Completed</div>
+                <div class="text-[10px] line-through">${ev.timeLabel} • Completed</div>
               </div>
-              <span class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-bold shrink-0">✓ Done</span>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold shrink-0">✓ Done</span>
             </div>
           `;
         }
@@ -1082,12 +1082,12 @@ const App = {
         const actionLabel = ev.type === 'photo' ? '📸 Snap' : '✓ Done';
 
         return `
-          <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-3 rounded-2xl border ${st.card} flex items-center justify-between gap-2.5 cursor-pointer transition-all btn-press">
+          <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-2.5 rounded-xl border ${st.card} flex items-center justify-between gap-2 cursor-pointer transition-all btn-press">
             <div class="min-w-0 flex-1">
-              <div class="text-xs font-extrabold leading-snug">${ev.icon} ${ev.title}</div>
-              <div class="text-[11px] font-medium ${st.sub} mt-0.5 leading-tight">${ev.timeLabel} • ${ev.subtext}</div>
+              <div class="text-xs font-extrabold leading-tight truncate">${ev.icon} ${ev.title}</div>
+              <div class="text-[10px] font-medium ${st.sub} mt-0.5 leading-tight truncate">${ev.timeLabel} • ${ev.subtext}</div>
             </div>
-            <button type="button" class="px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold shrink-0 ${st.btn}">
+            <button type="button" class="px-2 py-1 rounded-lg text-[10px] font-extrabold shrink-0 ${st.btn}">
               ${actionLabel}
             </button>
           </div>
@@ -1096,18 +1096,18 @@ const App = {
 
       return `
         ${weekDividerHtml}
-        <div class="flex items-start gap-3">
+        <div class="flex items-start gap-2.5">
           <!-- Left Column: Google Calendar Day Name & Date Circle -->
-          <div class="w-10 flex-shrink-0 text-center pt-0.5 select-none">
-            <span class="text-[10px] font-bold uppercase block ${day.isToday ? 'text-blue-600' : 'text-slate-500'}">${day.dayName}</span>
+          <div class="w-9 flex-shrink-0 text-center pt-0.5 select-none">
+            <span class="text-[9px] font-bold uppercase block ${day.isToday ? 'text-blue-600' : 'text-slate-500'}">${day.dayName}</span>
             ${day.isToday
-              ? `<div class="w-8 h-8 rounded-full bg-blue-600 text-white font-extrabold text-sm flex items-center justify-center mx-auto mt-0.5 shadow-xs">${day.dayNumber}</div>`
-              : `<div class="text-base font-bold text-slate-800 leading-tight mt-0.5">${day.dayNumber}</div>`
+              ? `<div class="w-7 h-7 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center mx-auto mt-0.5 shadow-2xs">${day.dayNumber}</div>`
+              : `<div class="text-sm font-bold text-slate-800 leading-tight mt-0.5">${day.dayNumber}</div>`
             }
           </div>
 
           <!-- Right Column: All-Day Banner + Timed Event Blocks -->
-          <div class="flex-1 min-w-0 space-y-2">
+          <div class="flex-1 min-w-0 space-y-1.5">
             ${allDayBannerHtml}
             ${eventsHtml}
           </div>
@@ -2560,32 +2560,31 @@ const App = {
 
     if (history.length === 0) {
       container.innerHTML = `
-        <div class="text-center py-6 text-slate-400 text-xs">
-          No previous weekly scans yet. Upload or snap your first photo!
+        <div class="text-center py-2 text-slate-400 text-[11px]">
+          No previous photo check-ins yet. Snap or upload your first photo above!
         </div>
       `;
       return;
     }
 
     const zones = StorageManager.getZones();
-    container.innerHTML = history.slice(0, 6).map(scan => {
+    container.innerHTML = history.slice(0, 3).map(scan => {
       const zName = scan.zoneName || zones.find(z => z.id === scan.zoneId)?.name || 'Lawn Section';
       const targetZId = scan.zoneId && scan.zoneId !== 'all' ? scan.zoneId : (zones[0]?.id || 'all');
       return `
-        <div onclick="App.openSectionAnalysisModal('${targetZId}')" class="flex items-center justify-between p-3 bg-white hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 text-xs cursor-pointer transition-all">
+        <div onclick="App.openSectionAnalysisModal('${targetZId}')" class="flex items-center justify-between p-2 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 text-xs cursor-pointer transition-all">
           <div class="min-w-0 pr-2">
             <div class="flex items-center gap-1.5 flex-wrap">
               <span class="font-bold text-slate-800">${zName}</span>
               <span class="text-[10px] text-slate-400">• ${scan.formattedDate}</span>
-              <span class="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">${scan.photoCount || 1} photo${scan.photoCount === 1 ? '' : 's'}</span>
             </div>
-            <p class="text-[11px] text-slate-500 mt-0.5 truncate">${scan.overallVerdict}</p>
+            <p class="text-[10px] text-slate-500 truncate">${scan.overallVerdict}</p>
           </div>
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
               ${scan.healthScore}%
             </span>
-            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
           </div>
         </div>
       `;
@@ -2604,27 +2603,26 @@ const App = {
       const isSelected = this.activeZoneId === z.id;
       const zoneLogs = StorageManager.getZoneLogs(z.id);
 
-      let waterAdvice = 'Standard 12mm dawn soak (100% runtime)';
+      let waterAdvice = '12mm dawn soak';
       if (skipRain) {
-        waterAdvice = '🌧️ Skip Sprinklers (Rain forecast covers this zone)';
+        waterAdvice = '🌧️ Skip sprinklers (rain forecast)';
       } else if (isRecovery) {
-        waterAdvice = '🩹 Priority Wetting Agent + 15mm Deep Root Soak';
+        waterAdvice = '🩹 Wetting agent + 15mm soak';
       } else if (isShaded) {
-        waterAdvice = '⛅ Reduce Runtime by 25% (Shade retains moisture)';
+        waterAdvice = '⛅ -25% runtime (shade)';
       }
 
       return `
-        <div onclick="App.switchZone('${z.id}')" class="p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${isSelected ? 'bg-sky-50 border-sky-300 shadow-2xs' : 'bg-slate-50 border-slate-200 hover:border-sky-200'}">
+        <div onclick="App.switchZone('${z.id}')" class="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${isSelected ? 'bg-sky-50 border-sky-300' : 'bg-slate-50 border-slate-200 hover:border-sky-200'}">
           <div class="min-w-0">
             <div class="flex items-center gap-1.5 flex-wrap">
               <strong class="text-slate-900">${z.name}</strong>
-              <span class="text-[10px] px-2 py-0.2 rounded-full bg-white border border-slate-200 text-slate-600">${z.sunExposure}</span>
+              <span class="text-[10px] text-slate-400">• Last: ${this.formatRelativeTime(zoneLogs.lastWater)}</span>
             </div>
-            <p class="text-[11px] text-sky-800 font-medium mt-0.5">${waterAdvice}</p>
-            <span class="text-[10px] text-slate-400 block mt-0.5">Last watered: ${this.formatRelativeTime(zoneLogs.lastWater)}</span>
+            <p class="text-[10px] text-sky-800 font-medium truncate">${waterAdvice}</p>
           </div>
-          <button type="button" onclick="event.stopPropagation(); StorageManager.logWater('${z.id}'); App.renderDashboard(); App.renderWeatherZones(); App.showToast('💧 Logged watering for ${z.name.replace(/'/g, "\\'")}!');" class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[10px] flex-shrink-0">
-            + Log Water
+          <button type="button" onclick="event.stopPropagation(); StorageManager.logWater('${z.id}'); App.renderDashboard(); App.renderWeatherZones(); App.showToast('💧 Logged watering for ${z.name.replace(/'/g, "\\'")}!');" class="px-2 py-1 rounded-lg bg-white hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[10px] flex-shrink-0">
+            + Log
           </button>
         </div>
       `;

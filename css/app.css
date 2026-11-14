@@ -10,29 +10,29 @@
 
 /* Locked top header with iOS status-bar / Dynamic Island safe clearance */
 .app-fixed-header {
-  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 0.75rem);
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.35rem), 0.5rem);
 }
 
 .app-header-spacer {
-  height: 96px;
+  height: 82px;
   flex-shrink: 0;
 }
 
 .app-modal-safe {
-  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 1rem);
-  padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.75rem), 1rem);
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 0.75rem);
+  padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.5rem), 0.75rem);
 }
 
 @supports (-webkit-touch-callout: none) {
   .app-fixed-header {
-    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3.25rem);
+    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.35rem), 2.85rem);
   }
   .app-header-spacer {
-    height: 138px;
+    height: 118px;
   }
   .app-modal-safe {
-    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 3.5rem);
-    padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.75rem), 1.5rem);
+    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3rem);
+    padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.5rem), 1rem);
   }
 }
 
