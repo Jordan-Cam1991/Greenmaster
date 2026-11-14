@@ -4,7 +4,36 @@
   --primary-glow: rgba(5, 150, 105, 0.25);
   --lawn-dark: #064e3b;
   --lawn-card-bg: rgba(255, 255, 255, 0.85);
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+/* Locked top header with iOS status-bar / Dynamic Island safe clearance */
+.app-fixed-header {
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 0.75rem);
+}
+
+.app-header-spacer {
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.app-modal-safe {
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 1rem);
+  padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.75rem), 1rem);
+}
+
+@supports (-webkit-touch-callout: none) {
+  .app-fixed-header {
+    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3.25rem);
+  }
+  .app-header-spacer {
+    height: 138px;
+  }
+  .app-modal-safe {
+    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 3.5rem);
+    padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.75rem), 1.5rem);
+  }
 }
 
 body {

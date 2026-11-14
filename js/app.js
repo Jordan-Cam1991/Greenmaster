@@ -229,6 +229,8 @@ const App = {
         }
       });
     }
+
+    window.addEventListener('resize', () => this.syncHeaderSpacer());
   },
 
   bindZoneEvents() {
@@ -494,6 +496,18 @@ const App = {
     }
 
     this.renderHeaderZoneSelector();
+    this.syncHeaderSpacer();
+  },
+
+  syncHeaderSpacer() {
+    const header = document.getElementById('app-top-header');
+    const spacer = document.getElementById('header-spacer');
+    if (header && spacer) {
+      const h = header.offsetHeight;
+      if (h > 0) {
+        spacer.style.height = `${h}px`;
+      }
+    }
   },
 
   renderHeaderZoneSelector() {
