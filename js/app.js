@@ -465,6 +465,7 @@ const App = {
     this.renderDashboard();
     this.renderTasksList();
     this.renderVisionZoneSelector();
+    this.renderBladeChat();
     this.renderWeatherZones();
     this.renderProfileForm();
     this.renderProfileSections();
@@ -1324,14 +1325,220 @@ const App = {
     ];
 
     container.innerHTML = photos.map((src, idx) => `
-      <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 group shadow-sm flex flex-col">
-        <img src="${src}" class="w-full h-24 object-cover" alt="Angle ${idx + 1}">
-        <div class="p-1.5 bg-white text-[10px] font-semibold text-slate-700 flex items-center justify-between gap-1">
+      <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group shadow-2xs flex flex-col">
+        <img src="${src}" class="w-full h-14 object-cover" alt="Angle ${idx + 1}">
+        <div class="px-1.5 py-1 bg-white text-[9px] font-semibold text-slate-700 flex items-center justify-between gap-1">
           <span>${photoLabels[idx] || `Angle ${idx + 1}`}</span>
-          <button type="button" onclick="App.removeStagedPhoto(${idx})" class="w-5 h-5 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center font-bold text-xs flex-shrink-0">✕</button>
+          <button type="button" onclick="App.removeStagedPhoto(${idx})" class="w-4 h-4 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center font-bold text-[10px] flex-shrink-0">✕</button>
         </div>
       </div>
     `).join('');
+  },
+
+  /* ------------------- BLADE AI CHAT, WEED / PATCH Q&A & PHOTO CHECK-IN ------------------- */
+
+  getBladeChatMessages() {
+    if (!this.bladeChatMessages) {
+      try {
+        const saved = localStorage.getItem('gm_blade_chat_history');
+        if (saved) {
+          this.bladeChatMessages = JSON.parse(saved);
+        }
+      } catch (e) {
+        this.bladeChatMessages = null;
+      }
+    }
+    if (!Array.isArray(this.bladeChatMessages) || this.bladeChatMessages.length === 0) {
+      const activeZone = StorageManager.getActiveZone();
+      const zName = activeZone ? `${activeZone.name} (${activeZone.grassType})` : 'All Lawn Sections';
+      this.bladeChatMessages = [
+        {
+          role: 'blade',
+          html: `
+            <div class="space-y-1.5">
+              <div>G'day! I'm <strong>Blade AI</strong> 🌱 — currently viewing <strong>${zName}</strong>.</div>
+              <div>• <strong>Snap or attach photos</strong> using the 📷 or 🖼️ buttons below.</div>
+              <div>• <strong>Ask me anything:</strong> <em>"What is this weed?"</em>, <em>"How do I get rid of this?"</em>, <em>"Why is this patch brown?"</em>, or tap <strong>Log photo to Calendar</strong>!</div>
+            </div>
+          `,
+          calendarTask: null
+        }
+      ];
+    }
+    return this.bladeChatMessages;
+  },
+
+  saveBladeChatMessages() {
+    try {
+      // Keep the most recent 12 messages (without large data URLs in localStorage to save quota)
+      const compact = (this.bladeChatMessages || []).slice(-12).map(m => ({
+        ...m,
+        photos: Array.isArray(m.photos) ? m.photos.slice(0, 2) : []
+      }));
+      localStorage.setItem('gm_blade_chat_history', JSON.stringify(compact));
+    } catch (e) {
+      // Ignore storage quota if photos are large
+    }
+  },
+
+  clearBladeChat() {
+    this.bladeChatMessages = null;
+    localStorage.removeItem('gm_blade_chat_history');
+    this.renderBladeChat();
+    this.showToast('✨ Blade AI chat cleared!');
+  },
+
+  renderBladeChat() {
+    const feed = document.getElementById('blade-chat-feed');
+    if (!feed) return;
+    const msgs = this.getBladeChatMessages();
+
+    feed.innerHTML = msgs.map((m, idx) => {
+      if (m.role === 'user') {
+        const photosHtml = Array.isArray(m.photos) && m.photos.length > 0
+          ? `<div class="grid grid-cols-2 gap-1.5 mb-1.5">
+               ${m.photos.map(src => `<img src="${src}" class="w-full h-20 object-cover rounded-lg border border-white/25">`).join('')}
+             </div>`
+          : '';
+        return `
+          <div class="flex justify-end">
+            <div class="max-w-[85%] bg-emerald-600 text-white px-3 py-2 rounded-2xl rounded-br-sm text-xs shadow-2xs">
+              ${photosHtml}
+              <div class="font-medium leading-snug">${m.text || '📸 Attached lawn photo(s)'}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      const taskBtnHtml = m.calendarTask
+        ? `<div class="mt-2 pt-2 border-t border-slate-200/80 flex items-center gap-2">
+             <button type="button" onclick="App.addBladeTaskToCalendar(${idx})" class="w-full py-2 px-3 rounded-xl text-[11px] font-extrabold transition-all btn-press flex items-center justify-center gap-1.5 ${m.addedToCalendar ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'}">
+               <span>${m.addedToCalendar ? '✓ Added to Your Calendar' : `📅 Add "${m.calendarTask.title}" to Calendar`}</span>
+             </button>
+           </div>`
+        : '';
+
+      return `
+        <div class="flex items-start gap-2">
+          <div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-extrabold flex-shrink-0 mt-0.5">
+            🌱
+          </div>
+          <div class="flex-1 bg-slate-50 border border-slate-200/90 text-slate-800 p-3 rounded-2xl rounded-tl-sm text-xs leading-relaxed">
+            ${m.html}
+            ${taskBtnHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    feed.scrollTop = feed.scrollHeight;
+  },
+
+  sendQuickBladePrompt(promptText) {
+    const input = document.getElementById('blade-chat-input');
+    if (input) input.value = promptText;
+    this.sendBladeChatMessage();
+  },
+
+  async sendBladeChatMessage() {
+    const input = document.getElementById('blade-chat-input');
+    const question = input ? input.value.trim() : '';
+    const stagedPhotos = [...this.getActiveStagedPhotos()];
+
+    if (!question && stagedPhotos.length === 0) {
+      this.showToast('📸 Snap/attach a photo or type a question for Blade first!');
+      return;
+    }
+
+    if (input) input.value = '';
+    this.clearStagedPhotos();
+
+    const msgs = this.getBladeChatMessages();
+    msgs.push({
+      role: 'user',
+      text: question || `📸 Log ${stagedPhotos.length} lawn photo${stagedPhotos.length === 1 ? '' : 's'} & analyze`,
+      photos: stagedPhotos
+    });
+    this.renderBladeChat();
+
+    const laser = document.getElementById('scanner-laser');
+    if (laser && stagedPhotos.length > 0) laser.classList.remove('hidden');
+
+    try {
+      const activeZone = StorageManager.getActiveZone();
+      const targetZoneId = activeZone ? activeZone.id : (StorageManager.getZones()[0]?.id || 'front_main');
+      const settings = StorageManager.getSettings();
+
+      const aiRes = await VisionEngine.askBladeAI({
+        question,
+        photos: stagedPhotos,
+        activeZone,
+        profile: this.profile,
+        weather: this.weather,
+        tapTimer: StorageManager.getTapTimer(),
+        apiKey: settings.apiKey
+      });
+
+      // Automatically log any uploaded photo scan to update Health Score & Calendar
+      if (aiRes.photoAnalysis) {
+        const record = StorageManager.saveScanResult(aiRes.photoAnalysis, targetZoneId);
+        this.latestZoneScanResults[targetZoneId] = record;
+        this.currentPlan = {
+          date: new Date().toISOString(),
+          ...aiRes.photoAnalysis
+        };
+        StorageManager.saveActivePlan(this.currentPlan);
+      }
+
+      msgs.push({
+        role: 'blade',
+        html: aiRes.replyHtml,
+        calendarTask: aiRes.calendarTask || null,
+        addedToCalendar: false
+      });
+
+      this.saveBladeChatMessages();
+      this.renderBladeChat();
+      this.renderHeader();
+      this.renderDashboard();
+      this.renderTasksList();
+      this.renderHistory();
+    } catch (err) {
+      console.error('Blade AI chat error:', err);
+      msgs.push({
+        role: 'blade',
+        html: 'I had a hiccup reading that photo—please try again or ask your question below!',
+        calendarTask: null
+      });
+      this.renderBladeChat();
+    } finally {
+      if (laser) laser.classList.add('hidden');
+    }
+  },
+
+  addBladeTaskToCalendar(msgIdx) {
+    const msgs = this.getBladeChatMessages();
+    const m = msgs[msgIdx];
+    if (!m || !m.calendarTask) return;
+
+    try {
+      const raw = localStorage.getItem('gm_blade_custom_events');
+      const list = raw ? JSON.parse(raw) : [];
+      list.push({
+        ...m.calendarTask,
+        addedAt: new Date().toISOString()
+      });
+      localStorage.setItem('gm_blade_custom_events', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Could not save custom event:', e);
+    }
+
+    m.addedToCalendar = true;
+    this.saveBladeChatMessages();
+    this.renderBladeChat();
+    this.renderDashboard();
+    this.renderTasksList();
+    this.showToast(`📅 Added "${m.calendarTask.title}" to your Calendar!`);
   },
 
   /* ------------------- ONBOARDING STEP 5: PER-SECTION PHOTO LIBRARY & CAMERA ------------------- */

@@ -972,6 +972,29 @@ const PlannerEngine = {
       });
     }
 
+    // 3b. Include custom treatments added directly from Blade AI Chat
+    try {
+      const customRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('gm_blade_custom_events') : null;
+      if (customRaw) {
+        const customTasks = JSON.parse(customRaw);
+        if (Array.isArray(customTasks)) {
+          customTasks.slice(-3).forEach((ct, cIdx) => {
+            placeOnDryDay(Math.min(daysCount - 1, 1 + cIdx), {
+              type: ct.type || 'feed',
+              icon: ct.icon || '✨',
+              title: ct.title || 'Blade AI Lawn Treatment',
+              timeLabel: '9:30 – 9:50 am',
+              startHour: 9,
+              subtext: ct.subtext || 'Added from Blade AI chat',
+              color: 'amber'
+            });
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore storage parse issue
+    }
+
     // 4. Schedule Regular Lawn Food based on lastFeed
     let nextFeedDay = null;
     for (let fDay = firstFeedOffset; fDay < daysCount; fDay += feedInterval) {

@@ -112,18 +112,18 @@
 
           <div class="flex-1">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xs font-extrabold text-slate-900">Lawn Photo Check-In</span>
+              <span class="text-xs font-extrabold text-slate-900">Blade AI & Photo Check-In</span>
               <span id="dash-photo-status-badge" class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold whitespace-nowrap">Checked Today</span>
             </div>
             <p id="dash-mascot-tip" class="text-[11px] text-slate-600 leading-snug mt-1">
-              Snap photos anytime so Blade can update your schedule.
+              Log lawn photos or ask Blade AI about weeds & patches.
             </p>
           </div>
         </div>
 
         <button onclick="App.switchTab('vision')" class="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all btn-press flex items-center gap-1.5 flex-shrink-0">
-          <i data-lucide="camera" class="w-4 h-4"></i>
-          <span>Log Photos</span>
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          <span>Ask Blade AI</span>
         </button>
       </div>
 
@@ -280,108 +280,105 @@
       </div>
     </main>
 
-    <!-- TAB 3: LOG PHOTOS VIEW (FULL-SCREEN LAYOUT) -->
-    <main id="view-vision" class="tab-view hidden app-screen-fill p-3 gap-3">
+    <!-- TAB 3: BLADE AI — CHAT, WEED / PROBLEM DIAGNOSIS & PHOTO CHECK-IN -->
+    <main id="view-vision" class="tab-view hidden app-screen-fill p-3 gap-2.5">
 
-      <!-- Combined Section Picker & Multi-Photo Upload Card -->
-      <div class="flex-1 flex flex-col justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-xs font-extrabold text-slate-900">Log Lawn Photos</h2>
-            <span class="text-[11px] text-slate-500">Helps Blade track progress & update your calendar</span>
+      <!-- 1. Blade AI Top Header + 1-Tap Quick Prompt Chips -->
+      <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-extrabold text-sm">
+              🌱
+            </div>
+            <div>
+              <h2 class="text-xs font-extrabold text-slate-900">Blade AI • Lawn Chat & Photo Log</h2>
+              <p class="text-[10px] text-slate-500">Snap a weed or patch, ask anything, or log photos</p>
+            </div>
           </div>
-          <div class="flex items-center gap-1.5">
-            <span id="staged-photo-count" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">0 Photos</span>
-            <button type="button" onclick="App.openSectionAnalysisModal()" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 btn-press">
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <button type="button" onclick="App.openSectionAnalysisModal()" class="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl flex items-center gap-1 btn-press">
               <i data-lucide="bar-chart-2" class="w-3 h-3"></i>
               <span>Scores</span>
+            </button>
+            <button type="button" onclick="App.clearBladeChat()" class="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-xl btn-press">
+              Clear
             </button>
           </div>
         </div>
 
-        <!-- Hidden select synced with pills for compatibility -->
-        <select id="vision-zone-target" class="hidden"></select>
-        <!-- Quick toggle pills for sections -->
-        <div id="vision-staged-zones-bar" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          <!-- Populated by App.renderVisionZoneSelector() -->
-        </div>
-
-        <!-- Staged Thumbnail Grid -->
-        <div id="staged-photos-container" class="grid grid-cols-3 gap-2">
-          <!-- Thumbnails rendered here -->
-        </div>
-
-        <!-- Dropzone -->
-        <div id="staged-empty-prompt" class="flex-1 relative bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 py-4 px-3 flex items-center justify-center gap-3 cursor-pointer hover:border-emerald-500 transition-all overflow-hidden">
-          <input type="file" id="lawn-photo-input" accept="image/*" multiple class="absolute inset-0 opacity-0 cursor-pointer z-20">
-          <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
-            <i data-lucide="images" class="w-5 h-5"></i>
-          </div>
-          <div class="text-left">
-            <span class="font-bold text-xs text-slate-800 block">Tap to Add Lawn Photos</span>
-            <span class="text-[11px] text-slate-500 block">Select wide view or problem spots</span>
-          </div>
-        </div>
-
-        <!-- Photo Library vs Direct Camera buttons -->
-        <div class="grid grid-cols-2 gap-2">
-          <label class="py-2.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5 btn-press">
-            <input type="file" accept="image/*" multiple onchange="App.handlePhotosSelected(event)" class="hidden">
-            <i data-lucide="image-plus" class="w-4 h-4 flex-shrink-0"></i>
-            <span>Photos Library</span>
-          </label>
-          <label class="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5 btn-press">
-            <input type="file" accept="image/*" capture="environment" onchange="App.handlePhotosSelected(event)" class="hidden">
-            <i data-lucide="camera" class="w-4 h-4 flex-shrink-0"></i>
-            <span>Take Photo</span>
-          </label>
-        </div>
-
-        <div id="staged-clear-row" class="hidden flex justify-end">
-          <button type="button" onclick="App.clearStagedPhotos()" class="text-[10px] text-rose-500 hover:text-rose-700 font-semibold underline">
-            Clear photos
+        <!-- 1-Tap Quick Prompt Chips -->
+        <div class="grid grid-cols-2 gap-1.5">
+          <button type="button" onclick="App.sendQuickBladePrompt('What is this weed and how do I get rid of it?')" class="py-1.5 px-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-[11px] font-bold text-slate-800 text-left transition-all btn-press">
+            🌿 What is this weed?
+          </button>
+          <button type="button" onclick="App.sendQuickBladePrompt('How do I get rid of weeds safely on my grass?')" class="py-1.5 px-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-[11px] font-bold text-slate-800 text-left transition-all btn-press">
+            🎯 How do I kill weeds?
+          </button>
+          <button type="button" onclick="App.sendQuickBladePrompt('Why is this patch brown or dry and how do I fix it?')" class="py-1.5 px-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-[11px] font-bold text-slate-800 text-left transition-all btn-press">
+            🟤 Fix brown / dry patch
+          </button>
+          <button type="button" onclick="App.sendQuickBladePrompt('Log photo check-in and update my calendar')" class="py-1.5 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[11px] font-bold text-emerald-800 text-left transition-all btn-press">
+            📸 Log photo to Calendar
           </button>
         </div>
 
-        <!-- Analyze Button -->
-        <button id="multi-scan-submit-btn" onclick="App.triggerMultiPhotoAnalysis()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all btn-press flex items-center justify-center gap-1.5 hidden">
-          <i data-lucide="sparkles" class="w-4 h-4"></i>
-          <span>Analyze Photos & Update Calendar →</span>
-        </button>
+        <!-- Hidden elements preserved for multi-zone state sync -->
+        <select id="vision-zone-target" class="hidden"></select>
+        <div id="vision-staged-zones-bar" class="hidden"></div>
+        <span id="staged-photo-count" class="hidden">0 Photos</span>
+        <div id="staged-empty-prompt" class="hidden"><input type="file" id="lawn-photo-input" accept="image/*" multiple class="hidden"></div>
+        <button id="multi-scan-submit-btn" class="hidden"><span></span></button>
+        <div id="history-scans-list" class="hidden"></div>
       </div>
 
       <!-- Laser line animation when scanning -->
       <div id="scanner-laser" class="scanner-laser hidden z-10"></div>
 
-      <!-- 1-Row Demo Turf Presets -->
-      <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-1.5">
-        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block px-0.5">Quick Demo Presets</span>
-        <div class="grid grid-cols-4 gap-1.5">
-          <button data-demo-turf="golf_green" class="py-2 px-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 text-center transition-all btn-press">
-            <span class="text-[11px] font-bold text-slate-800 block">⛳ Pro</span>
-          </button>
-          <button data-demo-turf="stressed_dry" class="py-2 px-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 text-center transition-all btn-press">
-            <span class="text-[11px] font-bold text-slate-800 block">☀️ Dry</span>
-          </button>
-          <button data-demo-turf="weedy_patchy" class="py-2 px-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-center transition-all btn-press">
-            <span class="text-[11px] font-bold text-slate-800 block">🌿 Weeds</span>
-          </button>
-          <button data-demo-turf="healthy_lawn" class="py-2 px-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 text-center transition-all btn-press">
-            <span class="text-[11px] font-bold text-slate-800 block">🏡 Healthy</span>
+      <!-- 2. Interactive Blade AI Chat & Photo Diagnosis Feed (Expands to Fill Screen) -->
+      <div id="blade-chat-feed" class="flex-1 bg-white rounded-2xl border border-slate-200 shadow-2xs p-3 overflow-y-auto space-y-2.5 flex flex-col justify-between">
+        <!-- Populated by App.renderBladeChat() -->
+      </div>
+
+      <!-- 3. Bottom Photo + Question Composer Bar -->
+      <div class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        <!-- Attached Photos Preview Strip (Shown when user selects or snaps photos) -->
+        <div id="staged-photos-container" class="grid grid-cols-3 gap-2"></div>
+        <div id="staged-clear-row" class="hidden flex items-center justify-between px-1">
+          <span class="text-[10px] font-bold text-emerald-700">📸 Photo attached — ask a question below or tap Send to log!</span>
+          <button type="button" onclick="App.clearStagedPhotos()" class="text-[10px] text-rose-600 font-bold underline">Remove</button>
+        </div>
+
+        <!-- Camera + Library + Text Input + Send Row -->
+        <div class="flex items-center gap-1.5">
+          <!-- Direct Camera Button -->
+          <label class="w-9 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center cursor-pointer flex-shrink-0 transition-all btn-press" title="Take Photo with Camera">
+            <input type="file" accept="image/*" capture="environment" onchange="App.handlePhotosSelected(event)" class="hidden">
+            <i data-lucide="camera" class="w-4 h-4"></i>
+          </label>
+
+          <!-- Photo Library Button -->
+          <label class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center cursor-pointer flex-shrink-0 transition-all btn-press" title="Choose from Photo Library">
+            <input type="file" accept="image/*" multiple onchange="App.handlePhotosSelected(event)" class="hidden">
+            <i data-lucide="image-plus" class="w-4 h-4"></i>
+          </label>
+
+          <!-- Question Input -->
+          <input
+            type="text"
+            id="blade-chat-input"
+            placeholder="Ask Blade (e.g. What is this weed?)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();App.sendBladeChatMessage();}"
+            class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500"
+          >
+
+          <!-- Send Button -->
+          <button type="button" onclick="App.sendBladeChatMessage()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-1 flex-shrink-0 shadow-xs transition-all btn-press">
+            <span>Ask</span>
+            <i data-lucide="send" class="w-3.5 h-3.5"></i>
           </button>
         </div>
       </div>
 
-      <!-- Scan History -->
-      <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Recent Photo Check-Ins</span>
-          <span class="text-[10px] text-slate-400">Auto-saved</span>
-        </div>
-        <div id="history-scans-list" class="space-y-1.5">
-          <!-- Dynamically filled -->
-        </div>
-      </div>
     </main>
 
     <!-- TAB 4: WEATHER & SMART WATERING VIEW (FULL-SCREEN LAYOUT) -->
@@ -660,12 +657,12 @@
           <span class="text-[10px] font-semibold">Calendar</span>
         </button>
 
-        <!-- 3. LOG PHOTOS (ELEVATED PROMINENT IN THE CENTER) -->
+        <!-- 3. BLADE AI (ELEVATED PROMINENT IN THE CENTER) -->
         <button data-tab="vision" class="flex flex-col items-center gap-0.5 py-0.5 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
           <div class="w-10 h-10 -mt-4 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white">
-            <i data-lucide="camera" class="w-5 h-5"></i>
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
           </div>
-          <span class="text-[10px] font-bold text-emerald-700">Log Photos</span>
+          <span class="text-[10px] font-bold text-emerald-700">Blade AI</span>
         </button>
 
         <!-- 4. Weather & Water -->
