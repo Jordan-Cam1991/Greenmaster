@@ -1,34 +1,44 @@
 /**
  * Vision Engine for GreenMaster AI
  * Combines in-browser Agronomic Computer Vision (Canvas DGCI & Canopy Density analysis)
- * with optional Gemini Vision API for deep turf diagnosis.
+ * with Multi-Photo Composite Analysis (Multi-angle & Problem Patch Hotspot Detection)
+ * and optional Gemini Vision API for deep turf diagnosis.
  */
 const VisionEngine = {
   /**
-   * Analyzes an image source (data URL, File, or Image Element)
+   * Analyzes an array of images (data URLs or Files) for a specific lawn section
    */
-  async analyzeImage(imageSrc, profile, apiKey = '') {
+  async analyzeMultipleImages(imagesArray, profile, zoneInfo = null, apiKey = '') {
+    if (!imagesArray || imagesArray.length === 0) {
+      throw new Error('No images provided for analysis');
+    }
+
+    const individualResults = [];
+
+    for (let i = 0; i < imagesArray.length; i++) {
+      const src = imagesArray[i];
+      const cvMetrics = await this.processSingleImage(src);
+      individualResults.push({
+        index: i + 1,
+        cvMetrics,
+        hotspot: this.detectHotspot(cvMetrics, i + 1)
+      });
+    }
+
+    return this.synthesizeMultiPhotoAnalysis(individualResults, profile, zoneInfo, apiKey);
+  },
+
+  /**
+   * Analyzes a single image source on Canvas
+   */
+  async processSingleImage(imageSrc) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = async () => {
+      img.onload = () => {
         try {
-          // 1. Run local Agronomic Computer Vision on Canvas
-          const cvMetrics = this.processCanvasMetrics(img);
-          
-          let aiAnalysis = null;
-          // 2. If Gemini API key is configured or server is available, attempt deep AI diagnosis
-          if (apiKey) {
-            try {
-              aiAnalysis = await this.queryGeminiVision(imageSrc, profile, apiKey);
-            } catch (err) {
-              console.warn('Gemini Vision fallback to agronomy heuristics:', err);
-            }
-          }
-
-          // 3. Synthesize result
-          const finalResult = this.synthesizeAnalysis(cvMetrics, aiAnalysis, profile);
-          resolve(finalResult);
+          const metrics = this.processCanvasMetrics(img);
+          resolve(metrics);
         } catch (e) {
           reject(e);
         }
@@ -39,12 +49,58 @@ const VisionEngine = {
   },
 
   /**
+   * Backward-compatible single image analyzer
+   */
+  async analyzeImage(imageSrc, profile, apiKey = '') {
+    return this.analyzeMultipleImages([imageSrc], profile, null, apiKey);
+  },
+
+  /**
+   * Identifies if a photo angle highlights a specific problem spot
+   */
+  detectHotspot(cv, photoNum) {
+    if (cv.brownRatio > 0.12) {
+      return {
+        type: 'drought_patch',
+        severity: 'High',
+        photoNum,
+        label: `Photo ${photoNum}: Localised Dry Patch / Drought Stress`,
+        recommendation: 'Targeted wetting agent drench and 20min spot watering required.'
+      };
+    }
+    if (cv.weedRatio > 0.06) {
+      return {
+        type: 'weed_cluster',
+        severity: 'High',
+        photoNum,
+        label: `Photo ${photoNum}: Weed / Broadleaf Outlier Cluster`,
+        recommendation: 'Targeted spot spray with selective broadleaf herbicide.'
+      };
+    }
+    if (cv.densityPercent < 60) {
+      return {
+        type: 'thin_patch',
+        severity: 'Medium',
+        photoNum,
+        label: `Photo ${photoNum}: Low Canopy Density / Bare Soil Spot`,
+        recommendation: 'Gentle liquid aeration and light nutrient push to stimulate lateral stolons.'
+      };
+    }
+    return {
+      type: 'healthy',
+      severity: 'Low',
+      photoNum,
+      label: `Photo ${photoNum}: Uniform Healthy Canopy`,
+      recommendation: 'Maintain standard mowing and hydration schedule.'
+    };
+  },
+
+  /**
    * Evaluates pixel colors, Dark Green Color Index (DGCI), Canopy Density,
    * Weed color variance, and leaf blade cut quality
    */
   processCanvasMetrics(img) {
     const canvas = document.createElement('canvas');
-    // Sample at 400x300 for fast, responsive calculation without memory bloat
     const width = 400;
     const height = 300;
     canvas.width = width;
@@ -71,25 +127,20 @@ const VisionEngine = {
 
       const [h, s, l] = this.rgbToHsl(r, g, b);
 
-      // Turf green hue generally spans between 65° and 160°
       if (h >= 65 && h <= 165 && s > 0.15 && l > 0.15 && l < 0.85) {
         greenPixelCount++;
         totalHue += h;
         totalSat += s;
         totalBri += l;
 
-        // DGCI calculation: Dark Green Color Index standard in turfgrass research
-        // Normalized index based on (Hue - 60)/60, Saturation, and (1 - Lightness)
         const hueNorm = (h - 60) / 60;
         const satNorm = s;
         const briNorm = 1 - l;
         const dgci = (hueNorm + satNorm + briNorm) / 3;
         darkGreenScoreSum += Math.max(0, Math.min(1, dgci));
       } else if ((h >= 25 && h < 65) || (l > 0.85 && s < 0.2)) {
-        // Brown/thatch/yellow drought spots
         brownPixelCount++;
       } else if (h < 25 || h > 165) {
-        // Discolored or foreign leaf/weed matter
         weedColorOutliers++;
       }
     }
@@ -99,7 +150,6 @@ const VisionEngine = {
     const weedRatio = weedColorOutliers / totalPixels;
     const brownRatio = brownPixelCount / totalPixels;
 
-    // Calculate composite health score
     let healthScore = Math.round((densityPercent * 0.45) + (avgDgci * 0.45) - (weedRatio * 50) - (brownRatio * 40));
     healthScore = Math.max(25, Math.min(99, healthScore));
 
@@ -118,7 +168,7 @@ const VisionEngine = {
     let h, s, l = (max + min) / 2;
 
     if (max === min) {
-      h = s = 0; // achromatic
+      h = s = 0;
     } else {
       const d = max - min;
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -133,127 +183,112 @@ const VisionEngine = {
   },
 
   /**
-   * Synthesize diagnostic results into actionable agronomic insights
+   * Synthesize multi-photo results into a composite diagnosis
    */
-  synthesizeAnalysis(cvMetrics, aiAnalysis, profile) {
-    if (aiAnalysis && aiAnalysis.actionPlan) {
-      return {
-        ...aiAnalysis,
-        densityScore: cvMetrics.densityPercent,
-        darkGreenColorIndex: cvMetrics.avgDgci
-      };
-    }
+  synthesizeMultiPhotoAnalysis(individualResults, profile, zoneInfo, apiKey) {
+    const photoCount = individualResults.length;
+    let sumHealth = 0;
+    let sumDensity = 0;
+    let sumDgci = 0;
+    let maxWeedRatio = 0;
+    let maxBrownRatio = 0;
+    const hotspots = [];
 
-    // Advanced agronomic rules engine
+    individualResults.forEach(r => {
+      sumHealth += r.cvMetrics.healthScore;
+      sumDensity += r.cvMetrics.densityPercent;
+      sumDgci += r.cvMetrics.avgDgci;
+      if (r.cvMetrics.weedRatio > maxWeedRatio) maxWeedRatio = r.cvMetrics.weedRatio;
+      if (r.cvMetrics.brownRatio > maxBrownRatio) maxBrownRatio = r.cvMetrics.brownRatio;
+      if (r.hotspot && r.hotspot.type !== 'healthy') {
+        hotspots.push(r.hotspot);
+      }
+    });
+
+    const avgHealth = Math.round(sumHealth / photoCount);
+    const avgDensity = Math.round(sumDensity / photoCount);
+    const avgDgci = Math.round(sumDgci / photoCount);
+
+    const sectionName = zoneInfo ? zoneInfo.name : 'Target Turf Section';
     const isPro = profile.tier === 'full_pro';
-    const isSemi = profile.tier === 'semi_pro';
-    const grass = profile.grassType;
-    const hoc = Number(profile.hoc) || 15;
 
     let weedLevel = 'Low (<2%)';
     let weeds = ['Minor poa annua / clover spot'];
-    if (cvMetrics.weedRatio > 0.08) {
-      weedLevel = 'High (>8%)';
+    if (maxWeedRatio > 0.08) {
+      weedLevel = 'High (>8% in hotspot)';
       weeds = ['Broadleaf Clover', 'Dandelion', 'Winter Grass / Crabgrass'];
-    } else if (cvMetrics.weedRatio > 0.03) {
+    } else if (maxWeedRatio > 0.03) {
       weedLevel = 'Moderate (3-8%)';
       weeds = ['Broadleaf weeds', 'Nutgrass / Sedges'];
     }
 
-    let diseaseOrStress = 'Optimal moisture & blade vigor. No leaf lesions.';
-    if (cvMetrics.brownRatio > 0.12) {
-      diseaseOrStress = 'Localised dry spot or thatch buildup detected. Needs surfactant wetting agent.';
-    } else if (cvMetrics.brownRatio > 0.05) {
-      diseaseOrStress = 'Minor blade tips yellowing. Check mower blade sharpness.';
+    let diseaseOrStress = 'Optimal moisture & blade vigor. No major lesions.';
+    if (maxBrownRatio > 0.12) {
+      diseaseOrStress = 'Localised dry patch or thatch compaction detected in spot photo.';
+    } else if (maxBrownRatio > 0.05) {
+      diseaseOrStress = 'Minor blade tips yellowing. Check rotary/reel blade sharpness.';
     }
 
-    let verdict = '';
-    if (cvMetrics.healthScore >= 88) {
-      verdict = `Outstanding turf vigor! Tight canopy and deep chlorophyll index. Ready to lock in height at ${hoc}mm.`;
-    } else if (cvMetrics.healthScore >= 75) {
-      verdict = `Good density and active lateral growth. Minor foliar spoon-feed and regular mowing will sharpen uniform texture.`;
+    let verdict = `Inspected ${photoCount} angle${photoCount > 1 ? 's' : ''} for ${sectionName}. `;
+    if (hotspots.length > 0) {
+      verdict += `Found ${hotspots.length} problem spot${hotspots.length > 1 ? 's' : ''}: ${hotspots.map(h => h.label).join('; ')}. Targeted spot treatments added to your plan!`;
+    } else if (avgHealth >= 88) {
+      verdict += `Canopy is exceptionally uniform and thriving with deep chlorophyll index. Ready to lock in cut height!`;
     } else {
-      verdict = `Canopy stress observed. Recommended wetting agent hydration and gentle nutrient push over the next 14 days.`;
+      verdict += `Good overall coverage with active lateral growth. Regular mowing and scheduled spoon-feeding will sharpen density.`;
     }
 
-    // Generate dynamic multi-horizon plan
+    // Dynamic multi-horizon action plan
     const actionPlan = PlannerEngine.generateDynamicPlan({
-      cvMetrics,
+      cvMetrics: {
+        densityPercent: avgDensity,
+        avgDgci: avgDgci,
+        weedRatio: maxWeedRatio,
+        brownRatio: maxBrownRatio,
+        healthScore: avgHealth
+      },
       weedLevel,
       weeds,
       diseaseOrStress,
-      profile
+      profile,
+      zones: StorageManager.getZones()
+    });
+
+    // If hotspots were detected, inject immediate hotspot tasks into Week 1
+    hotspots.forEach((h, idx) => {
+      if (h.type === 'drought_patch') {
+        actionPlan.oneWeek.unshift({
+          id: `w1_hotspot_drought_${idx}`,
+          task: `Targeted Wetting Agent Soak for ${sectionName} (${h.label.split(':')[0]})`,
+          urgency: 'Critical',
+          category: 'Watering',
+          tip: `Photo analysis pinpointed a severe dry spot in ${h.photoNum}. Drench this specific patch with soil surfactant and 15mm water to restore moisture permeability.`
+        });
+      } else if (h.type === 'weed_cluster') {
+        actionPlan.oneWeek.unshift({
+          id: `w1_hotspot_weed_${idx}`,
+          task: `Spot Spray Weed Cluster in ${sectionName} (${h.label.split(':')[0]})`,
+          urgency: 'High',
+          category: 'Weed Control',
+          tip: `Photo analysis isolated a weed cluster in ${h.photoNum}. Use selective herbicide directly on this cluster rather than blanketing the whole lawn.`
+        });
+      }
     });
 
     return {
-      healthScore: cvMetrics.healthScore,
-      darkGreenColorIndex: cvMetrics.avgDgci,
-      densityScore: cvMetrics.densityPercent,
+      photoCount,
+      healthScore: avgHealth,
+      darkGreenColorIndex: avgDgci,
+      densityScore: avgDensity,
       weedPressure: weedLevel,
       weedsDetected: weeds,
+      hotspots,
       diseaseOrStress,
       scalpOrBladeCondition: isPro ? 'Clean cylinder cut, zero tearing' : 'Rotary cut, keep blade sharp',
       overallVerdict: verdict,
-      recommendedHOC: isPro ? Math.min(hoc, 14) : isSemi ? Math.min(hoc, 25) : 40,
+      recommendedHOC: zoneInfo ? zoneInfo.hoc : (isPro ? 12 : 25),
       actionPlan
     };
-  },
-
-  /**
-   * Calls Gemini 1.5 Flash Vision directly
-   */
-  async queryGeminiVision(imageBase64, profile, apiKey) {
-    let cleanBase64 = imageBase64;
-    let mimeType = 'image/jpeg';
-    if (imageBase64.includes(',')) {
-      const parts = imageBase64.split(',');
-      if (parts[0].includes('png')) mimeType = 'image/png';
-      cleanBase64 = parts[1];
-    }
-
-    const prompt = `Analyze this lawn turf photo for an agronomic care plan.
-Lawn Profile: Grass Type: ${profile.grassType}, Tier: ${profile.tier} (low_maintenance / semi_pro / full_pro), Height of Cut: ${profile.hoc}mm, Equipment: ${profile.equipment.join(', ')}, Sprinklers: ${profile.sprinklers}.
-Return JSON only:
-{
-  "healthScore": 88,
-  "darkGreenColorIndex": 82,
-  "densityScore": 85,
-  "weedPressure": "Low",
-  "weedsDetected": ["Clover"],
-  "diseaseOrStress": "Healthy leaf tissue",
-  "scalpOrBladeCondition": "Clean cut",
-  "overallVerdict": "Summary note",
-  "recommendedHOC": 14,
-  "actionPlan": {
-    "oneWeek": [{"task": "...", "urgency": "High", "category": "Mowing", "tip": "..."}],
-    "twoWeeks": [{"task": "...", "urgency": "Medium", "category": "Fertiliser", "tip": "..."}],
-    "oneMonth": [{"task": "...", "urgency": "Medium", "category": "Soil", "tip": "..."}],
-    "oneQuarter": [{"task": "...", "urgency": "Critical", "category": "Protection", "tip": "..."}],
-    "halfYear": [{"task": "...", "urgency": "Medium", "category": "Renovation", "tip": "..."}],
-    "oneYear": [{"task": "...", "urgency": "High", "category": "Renovation", "tip": "..."}]
-  }
-}`;
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: cleanBase64 } }
-          ]
-        }],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.2
-        }
-      })
-    });
-
-    const data = await res.json();
-    const candidateText = data.candidates[0].content.parts[0].text;
-    return JSON.parse(candidateText);
   },
 
   /**
@@ -266,14 +301,12 @@ Return JSON only:
     const ctx = canvas.getContext('2d');
 
     if (type === 'golf_green') {
-      // Tournament golf green: ultra-dense emerald green, razor cut, tight texture
       const grad = ctx.createLinearGradient(0, 0, 0, 450);
       grad.addColorStop(0, '#065f46');
       grad.addColorStop(1, '#047857');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 600, 450);
 
-      // Add striping & blade density
       for (let x = 0; x < 600; x += 30) {
         ctx.fillStyle = (x / 30) % 2 === 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(4, 120, 87, 0.15)';
         ctx.fillRect(x, 0, 30, 450);
@@ -285,7 +318,6 @@ Return JSON only:
         ctx.fillRect(px, py, 1.5, 3);
       }
     } else if (type === 'stressed_dry') {
-      // Thirsty / drought dry patches
       const grad = ctx.createLinearGradient(0, 0, 600, 450);
       grad.addColorStop(0, '#15803d');
       grad.addColorStop(0.4, '#a16207');
@@ -294,31 +326,27 @@ Return JSON only:
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 600, 450);
 
-      // Thatch patches
       for (let i = 0; i < 3000; i++) {
         ctx.fillStyle = Math.random() > 0.6 ? '#854d0e' : '#4d7c0f';
         ctx.fillRect(Math.random() * 600, Math.random() * 450, 2, 4);
       }
     } else if (type === 'weedy_patchy') {
-      // Clover and broadleaf weed invasion
       ctx.fillStyle = '#22c55e';
       ctx.fillRect(0, 0, 600, 450);
 
-      // Weed clusters
       for (let w = 0; w < 12; w++) {
         const wx = 50 + Math.random() * 500;
         const wy = 50 + Math.random() * 350;
         ctx.beginPath();
         ctx.arc(wx, wy, 25 + Math.random() * 20, 0, Math.PI * 2);
-        ctx.fillStyle = '#84cc16'; // lighter weed green
+        ctx.fillStyle = '#84cc16';
         ctx.fill();
         ctx.beginPath();
         ctx.arc(wx + 8, wy - 5, 8, 0, Math.PI * 2);
-        ctx.fillStyle = '#fef08a'; // yellow dandelion
+        ctx.fillStyle = '#fef08a';
         ctx.fill();
       }
     } else {
-      // Healthy suburban lush couch / buffalo
       const grad = ctx.createLinearGradient(0, 0, 0, 450);
       grad.addColorStop(0, '#15803d');
       grad.addColorStop(1, '#166534');

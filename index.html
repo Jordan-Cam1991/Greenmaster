@@ -75,7 +75,7 @@
       <!-- Multi-Zone / Segment Selector Pills -->
       <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex items-center justify-between px-1 mb-1.5">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lawn Segments & Shade</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lawn Sections & Attention Levels</span>
           <span class="text-[10px] text-emerald-700 font-medium">Tap to filter</span>
         </div>
         <div id="dash-zone-selector" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
@@ -160,7 +160,7 @@
             </button>
             <button onclick="App.switchTab('vision')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all btn-press flex items-center gap-1">
               <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-              <span>Scan Turf</span>
+              <span>Multi-Photo Scan</span>
             </button>
           </div>
         </div>
@@ -224,7 +224,7 @@
               <i data-lucide="ruler" class="w-4 h-4 text-amber-600"></i>
             </div>
             <span id="dash-hoc-text" class="text-sm font-bold text-slate-900 block">12mm (0.47")</span>
-            <span id="dash-hoc-sub" class="text-[10px] text-slate-400">Bowling green standard</span>
+            <span id="dash-hoc-sub" class="text-[10px] text-slate-400 truncate block">Bowling green standard</span>
           </div>
           <button onclick="App.switchTab('profile')" class="mt-3 w-full py-2 bg-slate-50 hover:bg-amber-50 text-amber-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-amber-300 transition-all btn-press flex items-center justify-center gap-1">
             <i data-lucide="sliders" class="w-3 h-3"></i>
@@ -239,7 +239,7 @@
         <div class="flex gap-2">
           <button onclick="App.switchTab('vision')" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-md shadow-emerald-600/20 transition-all btn-press flex items-center justify-center gap-1.5">
             <i data-lucide="camera" class="w-4 h-4"></i>
-            <span>Take Weekly Photo</span>
+            <span>Inspect Sections & Hotspots</span>
           </button>
           <button onclick="App.showOnboarding(true)" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all btn-press flex items-center gap-1">
             <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
@@ -289,7 +289,7 @@
             </button>
           </div>
           <h2 id="current-horizon-title" class="text-xl font-bold mt-1">Next Week (7 Days)</h2>
-          <p id="current-horizon-sub" class="text-xs text-slate-300 mt-0.5">Immediate precision tasks based on latest scan</p>
+          <p id="current-horizon-sub" class="text-xs text-slate-300 mt-0.5">Immediate precision tasks based on latest scans</p>
 
           <!-- Progress bar -->
           <div class="mt-4 pt-3 border-t border-white/10">
@@ -310,37 +310,65 @@
       </div>
     </main>
 
-    <!-- TAB 3: VISION SCANNER VIEW -->
+    <!-- TAB 3: VISION SCANNER VIEW (MULTI-PHOTO & SECTION SELECTOR) -->
     <main id="view-vision" class="tab-view hidden p-4 space-y-4">
       <div class="text-center space-y-1">
-        <h2 class="text-lg font-bold text-slate-900">Weekly Turf Vision AI</h2>
-        <p class="text-xs text-slate-500">Take a photo of your turf to diagnose health and auto-refresh your planner</p>
+        <h2 class="text-lg font-bold text-slate-900">Multi-Angle Section Inspection</h2>
+        <p class="text-xs text-slate-500">Provide multiple photos (wide overview + problem patches) for any section</p>
       </div>
 
-      <!-- Privacy & Ephemeral Data Callout -->
-      <div class="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 p-3 rounded-2xl text-xs text-emerald-900">
-        <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600 flex-shrink-0"></i>
-        <span><strong>Storage & Privacy Friendly:</strong> Photos are processed on-device and ephemeral. No heavy images are stored on your phone.</span>
+      <!-- Section Target Picker -->
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+        <label class="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Select Section to Inspect</label>
+        <select id="vision-zone-target" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500">
+          <!-- Dynamically populated -->
+        </select>
+        <p class="text-[10px] text-slate-400">Allows you to focus attention on problem patches or high-curb areas.</p>
       </div>
 
-      <!-- Camera Scanner Dropzone -->
-      <div id="photo-dropzone" class="relative bg-white rounded-3xl border-2 border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 transition-all shadow-sm overflow-hidden min-h-[260px]">
-        <input type="file" id="lawn-photo-input" accept="image/*" capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-20">
-
-        <!-- Laser line animation when scanning -->
-        <div id="scanner-laser" class="scanner-laser hidden z-10"></div>
-
-        <!-- Preview Image -->
-        <img id="scanner-preview" class="absolute inset-0 w-full h-full object-cover hidden z-0" alt="Lawn preview">
-
-        <div class="relative z-10 flex flex-col items-center">
-          <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-3 shadow-inner">
-            <i data-lucide="camera" class="w-8 h-8"></i>
-          </div>
-          <span class="font-bold text-slate-800 text-sm" id="scan-btn-text">Snap or Upload Lawn Photo</span>
-          <span class="text-xs text-slate-400 mt-1" id="scanner-status">Supports Camera or Photo Library</span>
+      <!-- Multi-Photo Staging Area -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Staged Photos</span>
+          <span id="staged-photo-count" class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">0 Photos</span>
         </div>
+
+        <!-- Staged Thumbnail Grid -->
+        <div id="staged-photos-container" class="grid grid-cols-2 gap-2.5">
+          <!-- Thumbnails rendered here -->
+        </div>
+
+        <!-- Empty state prompt -->
+        <div id="staged-empty-prompt" class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 transition-all overflow-hidden min-h-[160px]">
+          <input type="file" id="lawn-photo-input" accept="image/*" multiple capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-20">
+          <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-2">
+            <i data-lucide="camera" class="w-6 h-6"></i>
+          </div>
+          <span class="font-bold text-xs text-slate-800">Add Photos (Select Multiple)</span>
+          <span class="text-[10px] text-slate-400 mt-0.5">Snap wide overview + problem patches</span>
+        </div>
+
+        <!-- Add another angle button -->
+        <div class="flex gap-2">
+          <label class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5">
+            <input type="file" accept="image/*" multiple capture="environment" onchange="App.handlePhotosSelected(event)" class="hidden">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Add Angle / Problem Spot</span>
+          </label>
+          <button type="button" onclick="App.clearStagedPhotos()" class="px-3 py-2.5 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-semibold text-xs rounded-xl border border-slate-200">
+            Clear
+          </button>
+        </div>
+
+        <!-- Analyze Button -->
+        <button id="multi-scan-submit-btn" onclick="App.triggerMultiPhotoAnalysis()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-600/25 transition-all btn-press flex items-center justify-center gap-2 hidden">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          <span>Analyze All Photos & Detect Hotspots →</span>
+        </button>
       </div>
+
+      <!-- Laser line animation when scanning -->
+      <div id="scanner-laser" class="scanner-laser hidden z-10"></div>
 
       <!-- Preset Test Turfs (Instant Demonstration) -->
       <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
@@ -704,7 +732,7 @@
           </div>
         </div>
 
-        <!-- STEP 2: MULTI-ZONE & SHADE MAPPING -->
+        <!-- STEP 2: MULTI-ZONE & ATTENTION LEVELS -->
         <div id="ob-step-2" class="space-y-3 py-1 hidden">
           <div>
             <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Target Approach Standard</label>
@@ -733,9 +761,16 @@
             </div>
           </div>
 
-          <!-- Zone 1: Front Yard -->
+          <!-- Zone 1: Front Yard Showpiece -->
           <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 block">🏡 Front Yard Zone</span>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700">🏡 Front Yard (Main)</span>
+              <select id="ob-front-attention" class="bg-white border border-slate-200 rounded-lg p-1 text-[10px] font-bold text-emerald-800">
+                <option value="showpiece" selected>⭐ Showpiece (High Attention)</option>
+                <option value="standard">🌿 Standard Care</option>
+                <option value="recovery">🔥 Recovery / TLC</option>
+              </select>
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <span class="text-[9px] text-slate-500 block">Grass Variety</span>
@@ -765,14 +800,40 @@
             </div>
           </div>
 
-          <!-- Zone 2: Back Yard (Often different shade or grass) -->
+          <!-- Zone 2: Nature Strip / Verge -->
           <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 block">🌳 Back Yard Zone</span>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700">🌱 Nature Strip / Verge</span>
+              <select id="ob-verge-attention" class="bg-white border border-slate-200 rounded-lg p-1 text-[10px] font-bold text-amber-800">
+                <option value="recovery" selected>🔥 Recovery / TLC Mode</option>
+                <option value="standard">🌿 Standard Care</option>
+                <option value="showpiece">⭐ Showpiece</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-500">Target HOC:</span>
+              <div class="flex items-center gap-1">
+                <input type="number" id="ob-verge-hoc" value="18" min="10" max="70" class="w-16 bg-white border border-slate-200 rounded-lg p-1 text-xs font-bold text-slate-800 text-center">
+                <span class="text-slate-400">mm</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Zone 3: Back Yard -->
+          <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700">🌳 Back Yard (Family Area)</span>
+              <select id="ob-back-attention" class="bg-white border border-slate-200 rounded-lg p-1 text-[10px] font-bold text-slate-700">
+                <option value="standard" selected>🌿 Standard Care</option>
+                <option value="recovery">🔥 Recovery / TLC</option>
+                <option value="showpiece">⭐ Showpiece</option>
+              </select>
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <span class="text-[9px] text-slate-500 block">Grass Variety</span>
                 <select id="ob-back-grass" class="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800">
-                  <option value="Buffalo / St Augustine" selected>Buffalo / Sir Walter (Shade Tolerant)</option>
+                  <option value="Buffalo / St Augustine" selected>Buffalo (Shade Tolerant)</option>
                   <option value="Bermuda / Couch">Bermuda / Couch</option>
                   <option value="Zoysia">Zoysia</option>
                   <option value="Kikuyu">Kikuyu</option>
@@ -895,24 +956,24 @@
           </div>
         </div>
 
-        <!-- STEP 5: OPTIONAL INITIAL PHOTO SCAN -->
+        <!-- STEP 5: OPTIONAL INITIAL MULTI-PHOTO SCAN -->
         <div id="ob-step-5" class="space-y-3 py-1 hidden">
           <div class="text-center space-y-1">
-            <h4 class="font-bold text-slate-900 text-sm">Want to show Blade your turf now?</h4>
-            <p class="text-xs text-slate-500">I can analyze chlorophyll greenness & weed pressure right away. (Or skip and do this later!)</p>
+            <h4 class="font-bold text-slate-900 text-sm">Want to show Blade your lawn sections?</h4>
+            <p class="text-xs text-slate-500">You can upload multiple photos (e.g. wide view + problem patches) or skip and do this later anytime! 📸</p>
           </div>
 
-          <div class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 overflow-hidden min-h-[160px]">
-            <input type="file" id="ob-photo-input" accept="image/*" capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-10">
-            <img id="ob-photo-preview" class="absolute inset-0 w-full h-full object-cover hidden" alt="Lawn preview">
-            <div class="relative z-0 flex flex-col items-center">
-              <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-2">
-                <i data-lucide="camera" class="w-6 h-6"></i>
-              </div>
-              <span class="font-bold text-xs text-slate-800" id="ob-photo-status">Snap Photo or Choose from Gallery</span>
-              <span class="text-[10px] text-slate-400 mt-0.5">Ephemeral • Zero data storage</span>
+          <div class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 overflow-hidden min-h-[140px]">
+            <input type="file" id="ob-photo-input" accept="image/*" multiple capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+            <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-1.5">
+              <i data-lucide="camera" class="w-5 h-5"></i>
             </div>
+            <span class="font-bold text-xs text-slate-800" id="ob-photo-status">Tap to Add Photos (Select Multiple)</span>
+            <span class="text-[10px] text-slate-400 mt-0.5">Ephemeral • Zero data storage</span>
           </div>
+
+          <!-- Preview grid for multiple photos in onboarding -->
+          <div id="ob-photos-preview-grid" class="grid grid-cols-3 gap-2"></div>
 
           <div class="text-center pt-1">
             <button type="button" onclick="App.nextOnboardingStep()" class="text-xs text-slate-400 hover:text-slate-600 underline">
@@ -947,15 +1008,18 @@
       </div>
     </div>
 
-    <!-- SCAN RESULT MODAL -->
+    <!-- SCAN RESULT MODAL (WITH MULTI-PHOTO & HOTSPOT BREAKDOWN) -->
     <div id="scan-result-modal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 hidden">
-      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-200">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto no-scrollbar">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <div class="flex items-center gap-2">
             <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
               <i data-lucide="sparkles" class="w-4 h-4"></i>
             </div>
-            <h3 class="font-bold text-slate-900 text-base">Weekly Turf Analysis</h3>
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm">Turf Section Analysis</h3>
+              <span id="modal-section-name" class="text-[11px] text-slate-400 block">Composite Scan</span>
+            </div>
           </div>
           <button onclick="App.closeModal()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
             ✕
@@ -977,6 +1041,9 @@
             <span id="modal-dgci" class="text-lg font-extrabold text-slate-800">82/100</span>
           </div>
         </div>
+
+        <!-- Hotspot Micro-Problems Container -->
+        <div id="modal-hotspots-list" class="hidden"></div>
 
         <!-- Diagnostic verdict -->
         <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs space-y-1.5">

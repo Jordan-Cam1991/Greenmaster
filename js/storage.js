@@ -1,6 +1,7 @@
 /**
  * Storage Manager for GreenMaster AI
- * Manages profile, multi-zone segments (Front/Back/Side), plan states, onboarding, and maintenance logs.
+ * Manages profile, multi-zone lawn sections with differing attention levels,
+ * multi-photo scan history, onboarding, and maintenance logs.
  */
 const StorageManager = {
   KEYS: {
@@ -18,24 +19,48 @@ const StorageManager = {
   getDefaultZones() {
     return [
       {
-        id: 'front',
-        name: 'Front Yard',
+        id: 'front_main',
+        name: 'Front Yard (Showpiece)',
+        yard: 'Front Yard',
+        attentionLevel: 'showpiece', // 'showpiece', 'standard', 'recovery', 'low'
         grassType: 'Bermuda / Couch',
         hoc: 12,
-        area: 120,
+        area: 90,
         sunExposure: 'Full Sun (6+ hrs)',
-        shadeFactor: 'low',
-        notes: 'High curb-appeal, cylinder cut'
+        notes: 'High curb-appeal, razor reel cut'
       },
       {
-        id: 'back',
-        name: 'Back Yard',
+        id: 'front_verge',
+        name: 'Front Nature Strip / Verge',
+        yard: 'Front Yard',
+        attentionLevel: 'recovery',
+        grassType: 'Bermuda / Couch',
+        hoc: 18,
+        area: 30,
+        sunExposure: 'Full Sun (6+ hrs)',
+        notes: 'High foot-traffic, drought-prone strip needing extra TLC'
+      },
+      {
+        id: 'back_main',
+        name: 'Back Yard (Main Lawn)',
+        yard: 'Back Yard',
+        attentionLevel: 'standard',
         grassType: 'Buffalo / St Augustine',
         hoc: 35,
-        area: 130,
+        area: 100,
         sunExposure: 'Partial Shade (3-5 hrs)',
-        shadeFactor: 'medium',
-        notes: 'Family play area, higher cut for shade tolerance'
+        notes: 'Family play area, regular maintenance'
+      },
+      {
+        id: 'back_shade',
+        name: 'Back Yard (Shaded Area)',
+        yard: 'Back Yard',
+        attentionLevel: 'recovery',
+        grassType: 'Buffalo / St Augustine',
+        hoc: 45,
+        area: 30,
+        sunExposure: 'Heavy Shade (<3 hrs)',
+        notes: 'Under pergola/trees, needs higher cut & fungus watch'
       }
     ];
   },
@@ -113,11 +138,12 @@ const StorageManager = {
     const newZone = {
       id: 'zone_' + Date.now(),
       name: zone.name || 'Side Yard',
+      yard: zone.yard || 'Front Yard',
+      attentionLevel: zone.attentionLevel || 'standard',
       grassType: zone.grassType || 'Bermuda / Couch',
       hoc: Number(zone.hoc) || 20,
-      area: Number(zone.area) || 50,
+      area: Number(zone.area) || 40,
       sunExposure: zone.sunExposure || 'Full Sun (6+ hrs)',
-      shadeFactor: zone.shadeFactor || 'low',
       notes: zone.notes || ''
     };
     zones.push(newZone);
@@ -205,17 +231,19 @@ const StorageManager = {
         zoneId: zoneId,
         date: new Date().toISOString(),
         formattedDate: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+        photoCount: record.photoCount || 1,
         healthScore: record.healthScore || 85,
         darkGreenColorIndex: record.darkGreenColorIndex || 78,
         densityScore: record.densityScore || 82,
         weedPressure: record.weedPressure || 'Low',
         weedsDetected: record.weedsDetected || [],
+        hotspots: record.hotspots || [],
         diseaseOrStress: record.diseaseOrStress || 'None detected',
         overallVerdict: record.overallVerdict || 'Healthy turf'
       };
       
       history.unshift(slimRecord);
-      if (history.length > 20) history.pop();
+      if (history.length > 30) history.pop();
       localStorage.setItem(this.KEYS.SCAN_HISTORY, JSON.stringify(history));
       return slimRecord;
     } catch (e) {
