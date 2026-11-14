@@ -352,25 +352,33 @@
           <!-- Thumbnails rendered here -->
         </div>
 
-        <!-- Empty state prompt -->
-        <div id="staged-empty-prompt" class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 transition-all overflow-hidden min-h-[160px]">
-          <input type="file" id="lawn-photo-input" accept="image/*" multiple capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-20">
-          <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-2">
-            <i data-lucide="camera" class="w-6 h-6"></i>
+        <!-- Empty state prompt (No capture attribute -> opens Photos Library multi-select!) -->
+        <div id="staged-empty-prompt" class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 transition-all overflow-hidden min-h-[140px]">
+          <input type="file" id="lawn-photo-input" accept="image/*" multiple class="absolute inset-0 opacity-0 cursor-pointer z-20">
+          <div class="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-2">
+            <i data-lucide="images" class="w-5 h-5"></i>
           </div>
-          <span class="font-bold text-xs text-slate-800">Add Photos (Select Multiple)</span>
-          <span class="text-[10px] text-slate-400 mt-0.5">Snap wide overview + problem patches</span>
+          <span class="font-bold text-xs text-slate-800">Tap to Choose Photos from Library</span>
+          <span class="text-[10px] text-slate-400 mt-0.5">Select multiple angles & problem spots for this area</span>
         </div>
 
-        <!-- Add another angle button -->
-        <div class="flex gap-2">
-          <label class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5">
-            <input type="file" accept="image/*" multiple capture="environment" onchange="App.handlePhotosSelected(event)" class="hidden">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-            <span>Add Angle / Problem Spot</span>
+        <!-- Photo Library (multi-select) vs Direct Camera buttons -->
+        <div class="grid grid-cols-2 gap-2">
+          <label class="py-2.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5 btn-press">
+            <input type="file" accept="image/*" multiple onchange="App.handlePhotosSelected(event)" class="hidden">
+            <i data-lucide="image-plus" class="w-4 h-4 flex-shrink-0"></i>
+            <span>Photos Library</span>
           </label>
-          <button type="button" onclick="App.clearStagedPhotos()" class="px-3 py-2.5 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-semibold text-xs rounded-xl border border-slate-200">
-            Clear
+          <label class="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-[11px] rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5 btn-press">
+            <input type="file" accept="image/*" capture="environment" onchange="App.handlePhotosSelected(event)" class="hidden">
+            <i data-lucide="camera" class="w-4 h-4 flex-shrink-0"></i>
+            <span>Take Photo</span>
+          </label>
+        </div>
+
+        <div id="staged-clear-row" class="hidden flex justify-end">
+          <button type="button" onclick="App.clearStagedPhotos()" class="text-[11px] text-rose-500 hover:text-rose-700 font-semibold underline">
+            Clear photos for this section
           </button>
         </div>
 
@@ -941,24 +949,54 @@
           </div>
         </div>
 
-        <!-- STEP 5: OPTIONAL INITIAL MULTI-PHOTO SCAN -->
+        <!-- STEP 5: OPTIONAL INITIAL MULTI-PHOTO SCAN (PER SECTION & PHOTO LIBRARY SUPPORT) -->
         <div id="ob-step-5" class="space-y-3 py-1 hidden">
           <div class="text-center space-y-1">
-            <h4 class="font-bold text-slate-900 text-sm">Want to show Blade your lawn sections?</h4>
-            <p class="text-xs text-slate-500">You can upload multiple photos (e.g. wide view + problem patches) or skip and do this later anytime! 📸</p>
+            <h4 class="font-bold text-slate-900 text-sm">Want to show Blade your lawn?</h4>
+            <p class="text-xs text-slate-500">Pick which yard section you're showing and attach multiple photos (wide overview + close-up spots).</p>
           </div>
 
-          <div class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 overflow-hidden min-h-[140px]">
-            <input type="file" id="ob-photo-input" accept="image/*" multiple capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+          <!-- Section Selector for Photos -->
+          <div class="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-2.5 space-y-1.5">
+            <label class="text-[10px] font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-700"></i>
+              <span>Which part of your yard are these photos of?</span>
+            </label>
+            <select id="ob-photo-section-select" onchange="App.handleOnboardingPhotoZoneChange(this.value)" class="w-full bg-white border border-emerald-300 rounded-xl p-2 text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500 cursor-pointer">
+              <!-- Populated dynamically by App.renderOnboardingPhotoSectionSelect() -->
+            </select>
+            <p class="text-[10px] text-emerald-700 leading-tight">Switch sections to upload multiple photos for different parts of your yard.</p>
+          </div>
+
+          <!-- Tap Area (NO capture attribute -> opens Photos Library multi-select or Camera menu!) -->
+          <div class="relative bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 overflow-hidden min-h-[110px]">
+            <input type="file" id="ob-photo-input" accept="image/*" multiple class="absolute inset-0 opacity-0 cursor-pointer z-10">
             <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-1.5">
-              <i data-lucide="camera" class="w-5 h-5"></i>
+              <i data-lucide="images" class="w-5 h-5"></i>
             </div>
-            <span class="font-bold text-xs text-slate-800" id="ob-photo-status">Tap to Add Photos (Select Multiple)</span>
+            <span class="font-bold text-xs text-slate-800" id="ob-photo-status">Tap to Choose Photos from Library (Multi-Select)</span>
             <span class="text-[10px] text-slate-400 mt-0.5">Ephemeral • Zero data storage</span>
           </div>
 
-          <!-- Preview grid for multiple photos in onboarding -->
+          <!-- Separate Photo Library & Take Camera Photo buttons -->
+          <div class="grid grid-cols-2 gap-2">
+            <label class="py-2 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5 btn-press">
+              <input type="file" accept="image/*" multiple onchange="App.handleOnboardingPhotosSelected(event)" class="hidden">
+              <i data-lucide="image-plus" class="w-4 h-4 flex-shrink-0"></i>
+              <span>Photos Library</span>
+            </label>
+            <label class="py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-[11px] rounded-xl text-center cursor-pointer transition-all flex items-center justify-center gap-1.5 btn-press">
+              <input type="file" accept="image/*" capture="environment" onchange="App.handleOnboardingPhotosSelected(event)" class="hidden">
+              <i data-lucide="camera" class="w-4 h-4 flex-shrink-0"></i>
+              <span>Take Photo</span>
+            </label>
+          </div>
+
+          <!-- Preview grid for multiple photos of the selected section -->
           <div id="ob-photos-preview-grid" class="grid grid-cols-3 gap-2"></div>
+
+          <!-- Summary pills showing photo counts across all yard sections -->
+          <div id="ob-photos-summary-badges" class="hidden flex flex-wrap gap-1.5 pt-1"></div>
 
           <div class="text-center pt-1">
             <button type="button" onclick="App.nextOnboardingStep()" class="text-xs text-slate-400 hover:text-slate-600 underline">

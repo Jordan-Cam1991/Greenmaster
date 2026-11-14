@@ -9,7 +9,7 @@ const App = {
   activeHorizon: 'oneWeek',
   activeZoneId: 'all',
   scanTargetZoneId: 'front_main',
-  stagedPhotos: [],
+  stagedPhotosByZone: {},
   currentPlan: null,
   profile: null,
   weather: null,
@@ -38,6 +38,8 @@ const App = {
     lastRenovation: 'last_year',
     sprinklers: 'In-Ground MP Rotators',
     wateringFreq: '2 times/week',
+    currentPhotoZoneId: null,
+    zonePhotos: {},
     initialPhotos: [],
     customOwnedProducts: []
   },
@@ -136,7 +138,7 @@ const App = {
     }
 
     // Dropzone for AI Vision
-    const dropZone = document.getElementById('photo-dropzone');
+    const dropZone = document.getElementById('staged-empty-prompt');
     if (dropZone) {
       dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -159,6 +161,9 @@ const App = {
     if (visionZoneSelect) {
       visionZoneSelect.addEventListener('change', (e) => {
         this.scanTargetZoneId = e.target.value;
+        this.renderStagedPhotosUI();
+        const zoneName = StorageManager.getZones().find(z => z.id === this.scanTargetZoneId)?.name || 'section';
+        this.showToast(`Ready for photos of "${zoneName}"`);
       });
     }
 
@@ -249,6 +254,15 @@ const App = {
     });
     const target = document.getElementById(`view-${tab}`);
     if (target) target.classList.remove('hidden');
+
+    if (tab === 'vision') {
+      const zones = StorageManager.getZones();
+      if (this.activeZoneId !== 'all' && zones.some(z => z.id === this.activeZoneId)) {
+        this.scanTargetZoneId = this.activeZoneId;
+      }
+      this.renderVisionZoneSelector();
+      this.renderStagedPhotosUI();
+    }
 
     document.querySelectorAll('[data-tab]').forEach(btn => {
       const active = btn.getAttribute('data-tab') === tab;
@@ -379,12 +393,21 @@ const App = {
     const select = document.getElementById('vision-zone-target');
     if (!select) return;
     const zones = StorageManager.getZones();
+    if (zones.length > 0 && !zones.some(z => z.id === this.scanTargetZoneId)) {
+      this.scanTargetZoneId = (this.activeZoneId !== 'all' && zones.some(z => z.id === this.activeZoneId))
+        ? this.activeZoneId
+        : zones[0].id;
+    }
 
-    select.innerHTML = zones.map(z => `
-      <option value="${z.id}" ${this.scanTargetZoneId === z.id ? 'selected' : ''}>
-        ${z.name} (${z.attentionLevel === 'showpiece' ? '⭐ High Attention' : z.attentionLevel === 'recovery' ? '🔥 Recovery Patch' : 'Standard'})
-      </option>
-    `).join('');
+    select.innerHTML = zones.map(z => {
+      const count = (this.stagedPhotosByZone[z.id] || []).length;
+      const badge = z.attentionLevel === 'showpiece' ? '⭐ High Attention' : z.attentionLevel === 'recovery' ? '🔥 Recovery Patch' : '🌿 Standard';
+      return `
+        <option value="${z.id}" ${this.scanTargetZoneId === z.id ? 'selected' : ''}>
+          ${z.name} (${badge})${count > 0 ? ` — ${count} photo${count === 1 ? '' : 's'}` : ''}
+        </option>
+      `;
+    }).join('');
   },
 
   promptAddZone() {
@@ -786,38 +809,53 @@ const App = {
 
   /* ------------------- MULTI-PHOTO STAGING & ANALYSIS ------------------- */
 
+  getActiveStagedPhotos() {
+    const zoneId = this.scanTargetZoneId || 'default';
+    if (!this.stagedPhotosByZone[zoneId]) {
+      this.stagedPhotosByZone[zoneId] = [];
+    }
+    return this.stagedPhotosByZone[zoneId];
+  },
+
   handlePhotosSelected(e) {
     if (e.target.files && e.target.files.length > 0) {
       this.processSelectedFiles(e.target.files);
+      e.target.value = '';
     }
   },
 
-  processSelectedFiles(fileList) {
-    Array.from(fileList).forEach(file => {
-      if (this.stagedPhotos.length >= 6) {
-        this.showToast('Maximum 6 photos per scan session.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        this.addStagedPhoto(event.target.result);
-      };
-      reader.readAsDataURL(file);
-    });
-  },
+  async processSelectedFiles(fileList) {
+    const photos = this.getActiveStagedPhotos();
+    const files = Array.from(fileList);
 
-  addStagedPhoto(dataUrl) {
-    this.stagedPhotos.push(dataUrl);
+    for (const file of files) {
+      if (photos.length >= 8) {
+        this.showToast('Maximum 8 photos per section scan.');
+        break;
+      }
+      try {
+        const compressedUrl = await VisionEngine.compressPhotoFile(file);
+        photos.push(compressedUrl);
+      } catch (err) {
+        console.warn('Image load error:', err);
+      }
+    }
+
+    this.renderVisionZoneSelector();
     this.renderStagedPhotosUI();
   },
 
   removeStagedPhoto(idx) {
-    this.stagedPhotos.splice(idx, 1);
+    const photos = this.getActiveStagedPhotos();
+    photos.splice(idx, 1);
+    this.renderVisionZoneSelector();
     this.renderStagedPhotosUI();
   },
 
   clearStagedPhotos() {
-    this.stagedPhotos = [];
+    const zoneId = this.scanTargetZoneId || 'default';
+    this.stagedPhotosByZone[zoneId] = [];
+    this.renderVisionZoneSelector();
     this.renderStagedPhotosUI();
   },
 
@@ -826,75 +864,182 @@ const App = {
     const analyzeBtn = document.getElementById('multi-scan-submit-btn');
     const emptyPrompt = document.getElementById('staged-empty-prompt');
     const countBadge = document.getElementById('staged-photo-count');
+    const clearRow = document.getElementById('staged-clear-row');
+
+    const photos = this.getActiveStagedPhotos();
 
     if (countBadge) {
-      countBadge.innerText = `${this.stagedPhotos.length} Photo${this.stagedPhotos.length === 1 ? '' : 's'}`;
+      countBadge.innerText = `${photos.length} Photo${photos.length === 1 ? '' : 's'}`;
     }
 
     if (!container) return;
 
-    if (this.stagedPhotos.length === 0) {
+    if (photos.length === 0) {
       container.innerHTML = '';
       if (emptyPrompt) emptyPrompt.classList.remove('hidden');
       if (analyzeBtn) analyzeBtn.classList.add('hidden');
+      if (clearRow) clearRow.classList.add('hidden');
       return;
     }
 
     if (emptyPrompt) emptyPrompt.classList.add('hidden');
     if (analyzeBtn) analyzeBtn.classList.remove('hidden');
+    if (clearRow) clearRow.classList.remove('hidden');
 
-    const photoLabels = ['Wide Angle Overview', 'Problem Patch 1', 'Problem Patch 2', 'Close-up Cut Quality', 'Edge / Weed Spot'];
+    const photoLabels = [
+      'Wide Angle Overview',
+      'Problem Patch 1',
+      'Problem Patch 2',
+      'Close-up Cut Quality',
+      'Edge / Weed Spot',
+      'Angle 6',
+      'Angle 7',
+      'Angle 8'
+    ];
 
-    container.innerHTML = this.stagedPhotos.map((src, idx) => `
+    container.innerHTML = photos.map((src, idx) => `
       <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 group shadow-sm flex flex-col">
         <img src="${src}" class="w-full h-24 object-cover" alt="Angle ${idx + 1}">
         <div class="p-1.5 bg-white text-[10px] font-semibold text-slate-700 flex items-center justify-between">
-          <span>${photoLabels[idx] || `Angle ${idx + 1}`}</span>
-          <button type="button" onclick="App.removeStagedPhoto(${idx})" class="w-5 h-5 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center font-bold text-xs">✕</button>
+          <span class="truncate">${photoLabels[idx] || `Angle ${idx + 1}`}</span>
+          <button type="button" onclick="App.removeStagedPhoto(${idx})" class="w-5 h-5 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center font-bold text-xs flex-shrink-0">✕</button>
         </div>
       </div>
     `).join('');
   },
 
-  handleOnboardingPhotosSelected(e) {
-    if (e.target.files && e.target.files.length > 0) {
-      Array.from(e.target.files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          this.consultationData.initialPhotos.push(event.target.result);
-          this.renderOnboardingPhotosPreview();
-        };
-        reader.readAsDataURL(file);
-      });
+  /* ------------------- ONBOARDING STEP 5: PER-SECTION PHOTO LIBRARY & CAMERA ------------------- */
+
+  renderOnboardingPhotoSectionSelect() {
+    const select = document.getElementById('ob-photo-section-select');
+    if (!select) return;
+    const zones = this.consultationData.zones || StorageManager.getZones();
+    if (!zones || zones.length === 0) return;
+
+    if (!this.consultationData.currentPhotoZoneId || !zones.some(z => z.id === this.consultationData.currentPhotoZoneId)) {
+      this.consultationData.currentPhotoZoneId = zones[0].id;
+    }
+    if (!this.consultationData.zonePhotos) {
+      this.consultationData.zonePhotos = {};
+    }
+
+    select.innerHTML = zones.map(z => {
+      const count = (this.consultationData.zonePhotos[z.id] || []).length;
+      const badge = z.attentionLevel === 'showpiece' ? '⭐ Showpiece' : z.attentionLevel === 'recovery' ? '🔥 Recovery' : '🌿 Standard';
+      return `
+        <option value="${z.id}" ${this.consultationData.currentPhotoZoneId === z.id ? 'selected' : ''}>
+          🌱 ${z.name} (${badge})${count > 0 ? ` — ${count} photo${count === 1 ? '' : 's'}` : ''}
+        </option>
+      `;
+    }).join('');
+
+    this.renderOnboardingPhotosPreview();
+  },
+
+  handleOnboardingPhotoZoneChange(newZoneId) {
+    this.consultationData.currentPhotoZoneId = newZoneId;
+    this.renderOnboardingPhotosPreview();
+  },
+
+  async handleOnboardingPhotosSelected(e) {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const zones = this.consultationData.zones || StorageManager.getZones();
+    const zoneId = this.consultationData.currentPhotoZoneId || (zones[0] ? zones[0].id : 'front_main');
+    if (!this.consultationData.zonePhotos) this.consultationData.zonePhotos = {};
+    if (!this.consultationData.zonePhotos[zoneId]) this.consultationData.zonePhotos[zoneId] = [];
+
+    const targetList = this.consultationData.zonePhotos[zoneId];
+    const files = Array.from(e.target.files);
+    e.target.value = '';
+
+    for (const file of files) {
+      if (targetList.length >= 8) {
+        this.showToast('Maximum 8 photos per lawn section.');
+        break;
+      }
+      try {
+        const compressed = await VisionEngine.compressPhotoFile(file);
+        targetList.push(compressed);
+      } catch (err) {
+        console.warn('Onboarding image load error:', err);
+      }
+    }
+
+    this.renderOnboardingPhotoSectionSelect();
+    this.showToast(`Added ${files.length} photo${files.length === 1 ? '' : 's'}!`);
+  },
+
+  removeOnboardingPhoto(zoneId, idx) {
+    if (this.consultationData.zonePhotos && this.consultationData.zonePhotos[zoneId]) {
+      this.consultationData.zonePhotos[zoneId].splice(idx, 1);
+      this.renderOnboardingPhotoSectionSelect();
     }
   },
 
   renderOnboardingPhotosPreview() {
     const container = document.getElementById('ob-photos-preview-grid');
     const statusText = document.getElementById('ob-photo-status');
-    const photos = this.consultationData.initialPhotos;
+    const summaryEl = document.getElementById('ob-photos-summary-badges');
+
+    const zones = this.consultationData.zones || StorageManager.getZones();
+    const zoneId = this.consultationData.currentPhotoZoneId || (zones[0] ? zones[0].id : 'front_main');
+    const currentZone = zones.find(z => z.id === zoneId);
+    const zoneName = currentZone ? currentZone.name : 'this section';
+
+    if (!this.consultationData.zonePhotos) this.consultationData.zonePhotos = {};
+    const photos = this.consultationData.zonePhotos[zoneId] || [];
 
     if (statusText) {
-      statusText.innerText = `${photos.length} photo${photos.length === 1 ? '' : 's'} added! Blade will analyze all angles together.`;
+      if (photos.length === 0) {
+        statusText.innerText = `Tap to Choose Photos for ${zoneName} (Multi-Select)`;
+      } else {
+        statusText.innerText = `${photos.length} photo${photos.length === 1 ? '' : 's'} attached for ${zoneName}! Tap to add more.`;
+      }
     }
 
-    if (!container) return;
-    container.innerHTML = photos.map(src => `
-      <div class="relative rounded-xl overflow-hidden border border-slate-200">
-        <img src="${src}" class="w-full h-16 object-cover" alt="Lawn preview">
-      </div>
-    `).join('');
+    if (container) {
+      const labels = ['Wide View', 'Patch 2', 'Patch 3', 'Close-up', 'Edge 5', 'Angle 6', 'Angle 7', 'Angle 8'];
+      container.innerHTML = photos.map((src, idx) => `
+        <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs">
+          <img src="${src}" class="w-full h-16 object-cover" alt="${zoneName} photo ${idx + 1}">
+          <button type="button" onclick="App.removeOnboardingPhoto('${zoneId}', ${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-900/70 text-white hover:bg-rose-600 flex items-center justify-center text-[10px] font-bold">✕</button>
+          <span class="block text-[9px] font-semibold text-slate-700 bg-white/95 px-1.5 py-0.5 truncate text-center">${labels[idx] || `Photo ${idx + 1}`}</span>
+        </div>
+      `).join('');
+    }
+
+    if (summaryEl) {
+      const zonesWithPhotos = zones.filter(z => (this.consultationData.zonePhotos[z.id] || []).length > 0);
+      if (zonesWithPhotos.length > 0) {
+        summaryEl.classList.remove('hidden');
+        summaryEl.innerHTML = zonesWithPhotos.map(z => {
+          const cnt = this.consultationData.zonePhotos[z.id].length;
+          return `
+            <button type="button" onclick="App.handleOnboardingPhotoZoneChange('${z.id}'); document.getElementById('ob-photo-section-select').value='${z.id}';" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${z.id === zoneId ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}">
+              <span>📸 ${z.name}: ${cnt}</span>
+            </button>
+          `;
+        }).join('');
+      } else {
+        summaryEl.innerHTML = '';
+        summaryEl.classList.add('hidden');
+      }
+    }
   },
 
   loadDemoTurf(type) {
     const dataUrl = VisionEngine.createDemoTurfImage(type);
-    this.stagedPhotos = [dataUrl];
+    const zoneId = this.scanTargetZoneId || 'default';
+    this.stagedPhotosByZone[zoneId] = [dataUrl];
+    this.renderVisionZoneSelector();
     this.renderStagedPhotosUI();
     this.triggerMultiPhotoAnalysis();
   },
 
   async triggerMultiPhotoAnalysis() {
-    if (this.stagedPhotos.length === 0) {
+    const photos = this.getActiveStagedPhotos();
+    if (photos.length === 0) {
       this.showToast('Please add at least 1 photo to inspect.');
       return;
     }
@@ -908,7 +1053,7 @@ const App = {
 
     try {
       const settings = StorageManager.getSettings();
-      const result = await VisionEngine.analyzeMultipleImages(this.stagedPhotos, this.profile, targetZone, settings.apiKey);
+      const result = await VisionEngine.analyzeMultipleImages(photos, this.profile, targetZone, settings.apiKey);
 
       this.currentPlan = {
         date: new Date().toISOString(),
@@ -997,6 +1142,8 @@ const App = {
         this.consultationData.zones = currentZones && currentZones.length > 0 ? currentZones.map(z => ({ ...z })) : [];
         this.consultationData.currentAuditingZoneId = null;
         this.consultationData.zoneHistory = {};
+        this.consultationData.currentPhotoZoneId = null;
+        this.consultationData.zonePhotos = {};
         if (this.profile && Array.isArray(this.profile.customOwnedProducts)) {
           this.consultationData.customOwnedProducts = this.profile.customOwnedProducts.map((name, i) => ({
             key: 'existing_' + i,
@@ -1075,6 +1222,8 @@ const App = {
       this.renderOnboardingSections();
     } else if (this.onboardingStep === 4) {
       this.renderHistorySectionSelect();
+    } else if (this.onboardingStep === 5) {
+      this.renderOnboardingPhotoSectionSelect();
     } else if (this.onboardingStep === 6) {
       this.renderConsultationSummary();
     }
@@ -1369,6 +1518,11 @@ const App = {
       'low': '🛋️ Low-Key'
     };
 
+    const zonesWithPhotos = d.zonePhotos
+      ? d.zones.filter(z => (d.zonePhotos[z.id] || []).length > 0)
+      : [];
+    const totalPhotosCount = zonesWithPhotos.reduce((acc, z) => acc + d.zonePhotos[z.id].length, 0);
+
     let diagnosisHTML = `
       <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
         <div class="font-bold flex items-center gap-1.5 text-emerald-900">
@@ -1377,9 +1531,11 @@ const App = {
         </div>
         <p class="leading-relaxed">Configured <strong>${d.zones.length} distinct lawn section${d.zones.length === 1 ? '' : 's'}</strong> with custom names & attention levels.</p>
         <div class="pt-1.5 border-t border-emerald-200/80 text-[11px] text-emerald-800 space-y-1">
-          ${d.zones.map(z => `
-            <div>• <strong>${z.name}</strong>: ${z.grassType} @ ${z.hoc}mm (${attentionNames[z.attentionLevel] || '🌿 Standard'})</div>
-          `).join('')}
+          ${d.zones.map(z => {
+            const pCnt = (d.zonePhotos && d.zonePhotos[z.id]) ? d.zonePhotos[z.id].length : 0;
+            return `<div>• <strong>${z.name}</strong>: ${z.grassType} @ ${z.hoc}mm (${attentionNames[z.attentionLevel] || '🌿 Standard'})${pCnt > 0 ? ` — 📸 ${pCnt} photo${pCnt === 1 ? '' : 's'}` : ''}</div>`;
+          }).join('')}
+          ${totalPhotosCount > 0 ? `<div class="pt-1 text-[10px] font-bold text-emerald-900">• 📸 Queued ${totalPhotosCount} photo${totalPhotosCount === 1 ? '' : 's'} for instant AI inspection when you tap "Let's Grow!"</div>` : ''}
           <div class="pt-1 text-[10px] text-emerald-700">• Pre-Emergent: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Urgent Application'}</strong></div>
         </div>
       </div>
@@ -1596,15 +1752,61 @@ const App = {
     StorageManager.saveProfile(this.profile);
     StorageManager.setOnboarded(true);
 
-    if (d.initialPhotos && d.initialPhotos.length > 0) {
+    const zonesWithPhotos = d.zonePhotos
+      ? Object.keys(d.zonePhotos).filter(zId => Array.isArray(d.zonePhotos[zId]) && d.zonePhotos[zId].length > 0)
+      : [];
+
+    if (zonesWithPhotos.length > 0) {
       this.showOnboarding(false);
-      this.stagedPhotos = [...d.initialPhotos];
+      this.analyzeOnboardingZonePhotos(d.zonePhotos, zonesWithPhotos);
+    } else if (d.initialPhotos && d.initialPhotos.length > 0) {
+      this.showOnboarding(false);
+      const firstZone = StorageManager.getZones()[0];
+      const zId = firstZone ? firstZone.id : 'front_main';
+      this.scanTargetZoneId = zId;
+      this.stagedPhotosByZone[zId] = [...d.initialPhotos];
       this.triggerMultiPhotoAnalysis();
     } else {
       this.showOnboarding(false);
       this.handleProfileChange();
       this.switchTab('dashboard');
       this.showToast("🌱 High-five! Blade has initialized your 6-horizon roadmap.");
+    }
+  },
+
+  async analyzeOnboardingZonePhotos(zonePhotos, zoneIds) {
+    const zones = StorageManager.getZones();
+    const settings = StorageManager.getSettings();
+    let latestResult = null;
+    let latestZone = null;
+
+    this.showToast(`🔍 Blade is inspecting ${zoneIds.length} lawn section${zoneIds.length === 1 ? '' : 's'}...`);
+
+    for (const zId of zoneIds) {
+      const photos = zonePhotos[zId];
+      const targetZone = zones.find(z => z.id === zId) || zones[0];
+      try {
+        const result = await VisionEngine.analyzeMultipleImages(photos, this.profile, targetZone, settings.apiKey);
+        StorageManager.addScanRecord(result, targetZone ? targetZone.id : 'all');
+        latestResult = result;
+        latestZone = targetZone;
+      } catch (e) {
+        console.warn('Onboarding photo analysis skipped for zone', zId, e);
+      }
+    }
+
+    if (latestResult) {
+      this.currentPlan = {
+        date: new Date().toISOString(),
+        ...latestResult
+      };
+      StorageManager.saveActivePlan(this.currentPlan);
+      this.renderAll();
+      this.showScanResultModal(latestResult, latestZone);
+      NotificationManager.playTone();
+    } else {
+      this.handleProfileChange();
+      this.switchTab('dashboard');
     }
   },
 

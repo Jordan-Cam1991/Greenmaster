@@ -292,6 +292,58 @@ const VisionEngine = {
   },
 
   /**
+   * Ephemerally downscales & compresses a user-selected File (from Camera or Photo Library)
+   * into a crisp lightweight JPEG data URL for fast mobile preview and CV analysis.
+   */
+  compressPhotoFile(file, maxDim = 960, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      const fallbackFileReader = () => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(file);
+      };
+
+      img.onload = () => {
+        try {
+          let w = img.naturalWidth || img.width;
+          let h = img.naturalHeight || img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          URL.revokeObjectURL(objectUrl);
+          resolve(dataUrl);
+        } catch (e) {
+          URL.revokeObjectURL(objectUrl);
+          fallbackFileReader();
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        fallbackFileReader();
+      };
+
+      img.src = objectUrl;
+    });
+  },
+
+  /**
    * Generates sample lawn images on canvas for immediate testing
    */
   createDemoTurfImage(type) {

@@ -1,5 +1,5 @@
 // Service Worker for GreenMaster AI Lawn Care App
-const CACHE_NAME = 'greenmaster-v1';
+const CACHE_NAME = 'greenmaster-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   './css/app.css',
   './js/storage.js',
   './js/notifications.js',
+  './js/weather-engine.js',
   './js/vision-engine.js',
   './js/planner-engine.js',
   './js/app.js'
