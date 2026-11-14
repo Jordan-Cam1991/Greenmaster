@@ -911,19 +911,25 @@ const PlannerEngine = {
       b.events.sort((a, c) => (a.startHour || 8) - (c.startHour || 8));
     });
 
+    const formatNextDate = (dayBucket, fallback) => {
+      if (!dayBucket) return fallback;
+      if (dayBucket.isToday) return 'Today';
+      if (dayBucket.offset === 1) return 'Tomorrow';
+      const niceDay = dayBucket.dayName.charAt(0) + dayBucket.dayName.slice(1).toLowerCase();
+      return `${niceDay} ${dayBucket.dayNumber} ${dayBucket.monthShort}`;
+    };
+
     return {
       days: dayBuckets,
       summary: {
         daysSinceMow,
         daysSinceWater,
         daysSinceFeed,
-        nextMowLabel: nextMowDay ? (nextMowDay.isToday ? 'Today' : `${nextMowDay.dayName} ${nextMowDay.dayNumber} ${nextMowDay.monthShort}`) : 'This week',
+        nextMowLabel: formatNextDate(nextMowDay, 'This week'),
         nextWaterLabel: weather?.shouldSkipSprinklers
-          ? 'Skipped (Rain)'
-          : nextWaterDay
-            ? (nextWaterDay.isToday ? 'Today' : `${nextWaterDay.dayName} ${nextWaterDay.dayNumber} ${nextWaterDay.monthShort}`)
-            : 'In 3 days',
-        nextFeedLabel: nextFeedDay ? (nextFeedDay.isToday ? 'Today' : `${nextFeedDay.dayName} ${nextFeedDay.dayNumber} ${nextFeedDay.monthShort}`) : `In ${firstFeedOffset} days`
+          ? 'Rain Skip'
+          : formatNextDate(nextWaterDay, 'In 3 days'),
+        nextFeedLabel: formatNextDate(nextFeedDay, `In ${firstFeedOffset}d`)
       }
     };
   }

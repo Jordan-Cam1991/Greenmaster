@@ -93,6 +93,7 @@ const App = {
       StorageManager.saveActivePlan(this.currentPlan);
     }
 
+    this.weather = WeatherEngine.getFallbackWeather();
     this.bindEvents();
     this.renderAll();
     this.registerServiceWorker();
@@ -107,8 +108,9 @@ const App = {
   async fetchWeather() {
     try {
       this.weather = await WeatherEngine.getCurrentWeather();
-      this.renderDashboardWeather();
-      this.renderPlannerWeekStrip();
+      this.renderDashboard();
+      this.renderTasksList();
+      this.renderWeatherZones();
     } catch (e) {
       console.warn('Weather load issue:', e);
     }
@@ -639,7 +641,7 @@ const App = {
         <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
           <div class="space-y-0.5 min-w-0">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <strong class="text-slate-900 text-xs truncate">${z.name}</strong>
+              <strong class="text-slate-900 text-xs">${z.name}</strong>
               <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.cls}">${badge.label}</span>
             </div>
             <div class="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
@@ -843,7 +845,7 @@ const App = {
       if (nextActionSubEl) nextActionSubEl.innerText = 'Snap a photo anytime if you spot dry patches or weeds.';
     }
 
-    // 3. Photo Check-In Status Card
+    // 3. Photo Check-In Status Card (Complete readable sentences — zero truncation)
     const mascotTipEl = document.getElementById('dash-mascot-tip');
     const photoBadgeEl = document.getElementById('dash-photo-status-badge');
     const scanHistory = StorageManager.getScanHistory(this.activeZoneId);
@@ -851,13 +853,13 @@ const App = {
       const latest = scanHistory[0];
       if (photoBadgeEl) photoBadgeEl.innerText = `Checked ${this.formatRelativeTime(latest.date)}`;
       if (mascotTipEl) {
-        mascotTipEl.innerText = `Tracking at ${latest.healthScore}% health. Log new photos anytime so I can adjust your watering & feeding calendar!`;
+        mascotTipEl.innerText = `Tracking at ${latest.healthScore}% health • Snap new photos anytime to update your schedule.`;
       }
     } else {
-      if (photoBadgeEl) photoBadgeEl.innerText = 'Log Photos';
+      if (photoBadgeEl) photoBadgeEl.innerText = 'AI Ready';
       if (mascotTipEl) {
         const areaText = activeZone ? activeZone.name : 'your lawn';
-        mascotTipEl.innerText = `Log a quick photo of ${areaText} so I can see how it's tracking and auto-schedule your calendar!`;
+        mascotTipEl.innerText = `Snap a photo of ${areaText} so Blade can update your schedule.`;
       }
     }
 
@@ -893,9 +895,9 @@ const App = {
     if (banner && verdictEl) {
       verdictEl.innerText = this.weather.rainVerdict;
       if (this.weather.shouldSkipSprinklers) {
-        banner.className = 'p-2.5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sm flex items-center gap-2.5 cursor-pointer';
+        banner.className = 'p-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sm flex items-center gap-3 cursor-pointer';
       } else {
-        banner.className = 'p-2.5 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 flex items-center gap-2.5 cursor-pointer';
+        banner.className = 'p-3.5 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 flex items-center gap-3 cursor-pointer';
       }
     }
 
@@ -910,7 +912,7 @@ const App = {
   },
 
   formatRelativeTime(isoString) {
-    if (!isoString) return 'Not logged yet';
+    if (!isoString) return 'Not yet';
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now - date;
@@ -920,7 +922,7 @@ const App = {
     if (diffHours < 1) return 'Today';
     if (diffHours < 24) return 'Today';
     if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 14) return `${diffDays} days ago`;
+    if (diffDays < 14) return `${diffDays}d ago`;
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   },
 
@@ -1070,9 +1072,9 @@ const App = {
         if (isDone) {
           return `
             <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-between gap-2 cursor-pointer transition-all">
-              <div class="min-w-0">
-                <div class="text-xs font-bold line-through truncate">${ev.icon} ${ev.title}</div>
-                <div class="text-[10px] line-through">${ev.timeLabel} • Completed</div>
+              <div class="flex-1">
+                <div class="text-xs font-bold line-through leading-snug">${ev.icon} ${ev.title}</div>
+                <div class="text-[10px] line-through leading-snug">${ev.timeLabel} • Completed</div>
               </div>
               <span class="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold shrink-0">✓ Done</span>
             </div>
@@ -1083,11 +1085,11 @@ const App = {
 
         return `
           <div onclick="App.handleCalendarEventAction('${ev.id}', '${ev.type}')" class="p-2.5 rounded-xl border ${st.card} flex items-center justify-between gap-2 cursor-pointer transition-all btn-press">
-            <div class="min-w-0 flex-1">
-              <div class="text-xs font-extrabold leading-tight truncate">${ev.icon} ${ev.title}</div>
-              <div class="text-[10px] font-medium ${st.sub} mt-0.5 leading-tight truncate">${ev.timeLabel} • ${ev.subtext}</div>
+            <div class="flex-1">
+              <div class="text-xs font-extrabold leading-snug">${ev.icon} ${ev.title}</div>
+              <div class="text-[10px] font-medium ${st.sub} mt-0.5 leading-snug">${ev.timeLabel} • ${ev.subtext}</div>
             </div>
-            <button type="button" class="px-2 py-1 rounded-lg text-[10px] font-extrabold shrink-0 ${st.btn}">
+            <button type="button" class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold shrink-0 ${st.btn}">
               ${actionLabel}
             </button>
           </div>
@@ -1324,8 +1326,8 @@ const App = {
     container.innerHTML = photos.map((src, idx) => `
       <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 group shadow-sm flex flex-col">
         <img src="${src}" class="w-full h-24 object-cover" alt="Angle ${idx + 1}">
-        <div class="p-1.5 bg-white text-[10px] font-semibold text-slate-700 flex items-center justify-between">
-          <span class="truncate">${photoLabels[idx] || `Angle ${idx + 1}`}</span>
+        <div class="p-1.5 bg-white text-[10px] font-semibold text-slate-700 flex items-center justify-between gap-1">
+          <span>${photoLabels[idx] || `Angle ${idx + 1}`}</span>
           <button type="button" onclick="App.removeStagedPhoto(${idx})" class="w-5 h-5 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center font-bold text-xs flex-shrink-0">✕</button>
         </div>
       </div>
@@ -1428,7 +1430,7 @@ const App = {
         <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs">
           <img src="${src}" class="w-full h-16 object-cover" alt="${zoneName} photo ${idx + 1}">
           <button type="button" onclick="App.removeOnboardingPhoto('${zoneId}', ${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-900/70 text-white hover:bg-rose-600 flex items-center justify-center text-[10px] font-bold">✕</button>
-          <span class="block text-[9px] font-semibold text-slate-700 bg-white/95 px-1.5 py-0.5 truncate text-center">${labels[idx] || `Photo ${idx + 1}`}</span>
+          <span class="block text-[9px] font-semibold text-slate-700 bg-white/95 px-1.5 py-0.5 text-center">${labels[idx] || `Photo ${idx + 1}`}</span>
         </div>
       `).join('');
     }
@@ -2572,13 +2574,13 @@ const App = {
       const zName = scan.zoneName || zones.find(z => z.id === scan.zoneId)?.name || 'Lawn Section';
       const targetZId = scan.zoneId && scan.zoneId !== 'all' ? scan.zoneId : (zones[0]?.id || 'all');
       return `
-        <div onclick="App.openSectionAnalysisModal('${targetZId}')" class="flex items-center justify-between p-2 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 text-xs cursor-pointer transition-all">
-          <div class="min-w-0 pr-2">
+        <div onclick="App.openSectionAnalysisModal('${targetZId}')" class="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 text-xs cursor-pointer transition-all">
+          <div class="flex-1 pr-2">
             <div class="flex items-center gap-1.5 flex-wrap">
               <span class="font-bold text-slate-800">${zName}</span>
               <span class="text-[10px] text-slate-400">• ${scan.formattedDate}</span>
             </div>
-            <p class="text-[10px] text-slate-500 truncate">${scan.overallVerdict}</p>
+            <p class="text-[10px] text-slate-500 leading-snug mt-0.5">${scan.overallVerdict}</p>
           </div>
           <div class="flex items-center gap-1.5 flex-shrink-0">
             <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
@@ -2603,25 +2605,25 @@ const App = {
       const isSelected = this.activeZoneId === z.id;
       const zoneLogs = StorageManager.getZoneLogs(z.id);
 
-      let waterAdvice = '12mm dawn soak';
+      let waterAdvice = 'Standard 12mm dawn soak';
       if (skipRain) {
         waterAdvice = '🌧️ Skip sprinklers (rain forecast)';
       } else if (isRecovery) {
         waterAdvice = '🩹 Wetting agent + 15mm soak';
       } else if (isShaded) {
-        waterAdvice = '⛅ -25% runtime (shade)';
+        waterAdvice = '⛅ Reduce runtime by 25% (shade)';
       }
 
       return `
         <div onclick="App.switchZone('${z.id}')" class="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${isSelected ? 'bg-sky-50 border-sky-300' : 'bg-slate-50 border-slate-200 hover:border-sky-200'}">
-          <div class="min-w-0">
+          <div class="flex-1">
             <div class="flex items-center gap-1.5 flex-wrap">
               <strong class="text-slate-900">${z.name}</strong>
               <span class="text-[10px] text-slate-400">• Last: ${this.formatRelativeTime(zoneLogs.lastWater)}</span>
             </div>
-            <p class="text-[10px] text-sky-800 font-medium truncate">${waterAdvice}</p>
+            <p class="text-[11px] text-sky-800 font-medium leading-snug mt-0.5">${waterAdvice}</p>
           </div>
-          <button type="button" onclick="event.stopPropagation(); StorageManager.logWater('${z.id}'); App.renderDashboard(); App.renderWeatherZones(); App.showToast('💧 Logged watering for ${z.name.replace(/'/g, "\\'")}!');" class="px-2 py-1 rounded-lg bg-white hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[10px] flex-shrink-0">
+          <button type="button" onclick="event.stopPropagation(); StorageManager.logWater('${z.id}'); App.renderDashboard(); App.renderWeatherZones(); App.showToast('💧 Logged watering for ${z.name.replace(/'/g, "\\'")}!');" class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[10px] flex-shrink-0">
             + Log
           </button>
         </div>
