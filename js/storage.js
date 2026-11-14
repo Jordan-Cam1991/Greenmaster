@@ -9,6 +9,7 @@ const StorageManager = {
     ZONES: 'gm_lawn_zones',
     ACTIVE_ZONE: 'gm_active_zone_id',
     PLAN: 'gm_active_plan',
+    ZONE_PLANS: 'gm_zone_plans',
     SCAN_HISTORY: 'gm_scan_history',
     COMPLETED_TASKS: 'gm_completed_tasks',
     SETTINGS: 'gm_user_settings',
@@ -233,6 +234,49 @@ const StorageManager = {
     }
   },
 
+  getZonePlans() {
+    try {
+      const data = localStorage.getItem(this.KEYS.ZONE_PLANS);
+      if (data) return JSON.parse(data);
+    } catch (e) {
+      console.warn('Error reading zone plans', e);
+    }
+    return {};
+  },
+
+  getZonePlan(zoneId) {
+    if (!zoneId || zoneId === 'all') return null;
+    const plans = this.getZonePlans();
+    if (plans[zoneId]) return plans[zoneId];
+    const history = this.getScanHistory();
+    return history.find(s => s.zoneId === zoneId) || null;
+  },
+
+  saveZonePlan(zoneId, planData) {
+    if (!zoneId || zoneId === 'all') return;
+    try {
+      const plans = this.getZonePlans();
+      plans[zoneId] = {
+        zoneId: zoneId,
+        date: new Date().toISOString(),
+        photoCount: planData.photoCount || 1,
+        healthScore: planData.healthScore || 85,
+        darkGreenColorIndex: planData.darkGreenColorIndex || 78,
+        densityScore: planData.densityScore || 82,
+        weedPressure: planData.weedPressure || 'Low',
+        weedsDetected: planData.weedsDetected || [],
+        hotspots: planData.hotspots || [],
+        diseaseOrStress: planData.diseaseOrStress || 'None detected',
+        overallVerdict: planData.overallVerdict || 'Healthy turf',
+        actionPlan: planData.actionPlan || null,
+        isPhotoScan: planData.isPhotoScan !== false
+      };
+      localStorage.setItem(this.KEYS.ZONE_PLANS, JSON.stringify(plans));
+    } catch (e) {
+      console.error('Error saving zone plan', e);
+    }
+  },
+
   getScanHistory() {
     try {
       const data = localStorage.getItem(this.KEYS.SCAN_HISTORY);
@@ -246,9 +290,12 @@ const StorageManager = {
   addScanRecord(record, zoneId = 'all') {
     try {
       const history = this.getScanHistory();
+      const zones = this.getZones();
+      const matchedZone = zones.find(z => z.id === zoneId);
       const slimRecord = {
-        id: 'scan_' + Date.now(),
+        id: 'scan_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         zoneId: zoneId,
+        zoneName: matchedZone ? matchedZone.name : 'All Sections',
         date: new Date().toISOString(),
         formattedDate: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
         photoCount: record.photoCount || 1,
@@ -259,12 +306,17 @@ const StorageManager = {
         weedsDetected: record.weedsDetected || [],
         hotspots: record.hotspots || [],
         diseaseOrStress: record.diseaseOrStress || 'None detected',
-        overallVerdict: record.overallVerdict || 'Healthy turf'
+        overallVerdict: record.overallVerdict || 'Healthy turf',
+        isPhotoScan: true
       };
       
       history.unshift(slimRecord);
       if (history.length > 30) history.pop();
       localStorage.setItem(this.KEYS.SCAN_HISTORY, JSON.stringify(history));
+
+      if (zoneId && zoneId !== 'all') {
+        this.saveZonePlan(zoneId, { ...record, isPhotoScan: true });
+      }
       return slimRecord;
     } catch (e) {
       console.error('Error adding scan record', e);

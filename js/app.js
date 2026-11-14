@@ -10,6 +10,8 @@ const App = {
   activeZoneId: 'all',
   scanTargetZoneId: 'front_main',
   stagedPhotosByZone: {},
+  modalViewingZoneId: null,
+  latestZoneScanResults: {},
   currentPlan: null,
   profile: null,
   weather: null,
@@ -241,10 +243,122 @@ const App = {
   switchZone(zoneId) {
     this.activeZoneId = zoneId;
     StorageManager.setActiveZoneId(zoneId);
-    this.renderHeaderZoneSelector();
+    if (zoneId && zoneId !== 'all') {
+      const zoneResult = this.getSectionAnalysisResult(zoneId);
+      if (zoneResult) {
+        this.currentPlan = {
+          date: zoneResult.date || new Date().toISOString(),
+          ...zoneResult
+        };
+      }
+    } else {
+      const savedMasterPlan = StorageManager.getActivePlan();
+      if (savedMasterPlan) {
+        this.currentPlan = savedMasterPlan;
+      }
+    }
+    this.renderHeader();
     this.renderZoneBar();
     this.renderDashboard();
     this.renderTasksList();
+  },
+
+  getSectionAnalysisResult(zoneId) {
+    const zones = StorageManager.getZones();
+    const targetZone = zones.find(z => z.id === zoneId) || zones[0];
+    if (!targetZone) return this.currentPlan;
+
+    if (this.latestZoneScanResults && this.latestZoneScanResults[targetZone.id]) {
+      return this.latestZoneScanResults[targetZone.id];
+    }
+
+    const storedZonePlan = StorageManager.getZonePlan(targetZone.id);
+    if (storedZonePlan) {
+      if (!storedZonePlan.actionPlan) {
+        storedZonePlan.actionPlan = PlannerEngine.generateDynamicPlan({
+          cvMetrics: {
+            densityPercent: storedZonePlan.densityScore || 82,
+            avgDgci: storedZonePlan.darkGreenColorIndex || 78,
+            weedRatio: 0.02,
+            brownRatio: 0.04,
+            healthScore: storedZonePlan.healthScore || 84
+          },
+          weedLevel: storedZonePlan.weedPressure || 'Low (<2%)',
+          weeds: storedZonePlan.weedsDetected || [],
+          diseaseOrStress: storedZonePlan.diseaseOrStress || 'None detected',
+          hotspots: storedZonePlan.hotspots || [],
+          profile: this.profile,
+          zones: [targetZone]
+        });
+      }
+      return storedZonePlan;
+    }
+
+    // Generate tailored agronomic baseline for this specific section if no photos scanned yet
+    const isRecovery = targetZone.attentionLevel === 'recovery';
+    const isShowpiece = targetZone.attentionLevel === 'showpiece';
+    const isShaded = (targetZone.sunExposure || '').toLowerCase().includes('shade');
+
+    const healthScore = isRecovery ? 58 : isShowpiece ? 89 : isShaded ? 74 : 82;
+    const densityScore = isRecovery ? 62 : isShowpiece ? 88 : isShaded ? 72 : 80;
+    const dgci = isRecovery ? 56 : isShowpiece ? 85 : isShaded ? 75 : 79;
+    const weedPressure = isRecovery ? 'Moderate (Recovery Area)' : 'Low (<2%)';
+    const stressText = isRecovery
+      ? 'High traffic / localized dry patch or recovery zone'
+      : isShaded
+      ? `Filtered sunlight (${targetZone.sunExposure}) — watch canopy moisture & maintain ${targetZone.hoc}mm cut`
+      : 'Healthy active stolon vigor';
+
+    const hotspots = [];
+    if (isRecovery) {
+      hotspots.push({
+        label: `${targetZone.name}: TLC / Recovery Priority`,
+        recommendation: `Apply soil wetting agent drench and liquid foliar feed before lowering cut height below ${targetZone.hoc}mm.`
+      });
+    }
+    if (isShaded) {
+      hotspots.push({
+        label: `${targetZone.name}: Shade Canopy Management`,
+        recommendation: `Keep mower height at ${targetZone.hoc}mm+ to maximize leaf surface area for photosynthesis.`
+      });
+    }
+
+    const actionPlan = PlannerEngine.generateDynamicPlan({
+      cvMetrics: {
+        densityPercent: densityScore,
+        avgDgci: dgci,
+        weedRatio: isRecovery ? 0.05 : 0.01,
+        brownRatio: isRecovery ? 0.12 : 0.03,
+        healthScore: healthScore
+      },
+      weedLevel: weedPressure,
+      weeds: isRecovery ? ['Broadleaf spot'] : [],
+      diseaseOrStress: stressText,
+      hotspots: hotspots,
+      profile: this.profile,
+      zones: [targetZone]
+    });
+
+    const baselineVerdict = isRecovery
+      ? `Baseline assessment for ${targetZone.name} (Recovery Mode): Focus on soil hydration, wetting agent application, and gentle ${targetZone.hoc}mm cuts while stolons thicken. Snap a photo anytime to pinpoint micro-patches!`
+      : isShaded
+      ? `Baseline assessment for ${targetZone.name} (${targetZone.sunExposure}): Tailored for ${targetZone.grassType} at ${targetZone.hoc}mm to protect shade density. Upload photos anytime for visual spot analysis!`
+      : `Baseline assessment for ${targetZone.name}: Calibrated for ${targetZone.grassType} at ${targetZone.hoc}mm (${targetZone.sunExposure}). Add photos in AI Vision to scan for hotspots!`;
+
+    return {
+      zoneId: targetZone.id,
+      photoCount: 0,
+      isPhotoScan: false,
+      healthScore,
+      densityScore,
+      darkGreenColorIndex: dgci,
+      weedPressure,
+      weedsDetected: [],
+      hotspots,
+      diseaseOrStress: stressText,
+      overallVerdict: baselineVerdict,
+      actionPlan
+    };
   },
 
   switchTab(tab) {
@@ -408,6 +522,26 @@ const App = {
         </option>
       `;
     }).join('');
+
+    const pillsBar = document.getElementById('vision-staged-zones-bar');
+    if (pillsBar) {
+      pillsBar.innerHTML = zones.map(z => {
+        const count = (this.stagedPhotosByZone[z.id] || []).length;
+        const isCurrent = z.id === this.scanTargetZoneId;
+        return `
+          <button type="button" onclick="App.selectVisionTargetZone('${z.id}')" class="px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1 ${isCurrent ? 'bg-emerald-600 text-white shadow-2xs' : count > 0 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+            <span>${count > 0 ? '📸' : '🌱'} ${z.name}</span>
+            ${count > 0 ? `<span class="px-1.5 py-0.2 rounded-full text-[9px] ${isCurrent ? 'bg-emerald-800 text-white' : 'bg-emerald-600 text-white'}">${count}</span>` : ''}
+          </button>
+        `;
+      }).join('');
+    }
+  },
+
+  selectVisionTargetZone(zoneId) {
+    this.scanTargetZoneId = zoneId;
+    this.renderVisionZoneSelector();
+    this.renderStagedPhotosUI();
   },
 
   promptAddZone() {
@@ -867,9 +1001,27 @@ const App = {
     const clearRow = document.getElementById('staged-clear-row');
 
     const photos = this.getActiveStagedPhotos();
+    const stagedZoneIds = Object.keys(this.stagedPhotosByZone || {}).filter(
+      zId => Array.isArray(this.stagedPhotosByZone[zId]) && this.stagedPhotosByZone[zId].length > 0
+    );
+    const totalStagedPhotos = stagedZoneIds.reduce((acc, zId) => acc + this.stagedPhotosByZone[zId].length, 0);
 
     if (countBadge) {
-      countBadge.innerText = `${photos.length} Photo${photos.length === 1 ? '' : 's'}`;
+      countBadge.innerText = `${photos.length} Photo${photos.length === 1 ? '' : 's'} in Section`;
+    }
+
+    if (analyzeBtn) {
+      if (totalStagedPhotos > 0) {
+        analyzeBtn.classList.remove('hidden');
+        const btnSpan = analyzeBtn.querySelector('span');
+        if (btnSpan) {
+          btnSpan.innerText = stagedZoneIds.length > 1
+            ? `Analyze ${totalStagedPhotos} Photos Across ${stagedZoneIds.length} Yard Sections →`
+            : `Analyze ${totalStagedPhotos} Photo${totalStagedPhotos === 1 ? '' : 's'} & Detect Hotspots →`;
+        }
+      } else {
+        analyzeBtn.classList.add('hidden');
+      }
     }
 
     if (!container) return;
@@ -877,13 +1029,11 @@ const App = {
     if (photos.length === 0) {
       container.innerHTML = '';
       if (emptyPrompt) emptyPrompt.classList.remove('hidden');
-      if (analyzeBtn) analyzeBtn.classList.add('hidden');
       if (clearRow) clearRow.classList.add('hidden');
       return;
     }
 
     if (emptyPrompt) emptyPrompt.classList.add('hidden');
-    if (analyzeBtn) analyzeBtn.classList.remove('hidden');
     if (clearRow) clearRow.classList.remove('hidden');
 
     const photoLabels = [
@@ -1038,8 +1188,12 @@ const App = {
   },
 
   async triggerMultiPhotoAnalysis() {
-    const photos = this.getActiveStagedPhotos();
-    if (photos.length === 0) {
+    const zones = StorageManager.getZones();
+    const stagedZoneIds = Object.keys(this.stagedPhotosByZone || {}).filter(
+      zId => Array.isArray(this.stagedPhotosByZone[zId]) && this.stagedPhotosByZone[zId].length > 0
+    );
+
+    if (stagedZoneIds.length === 0) {
       this.showToast('Please add at least 1 photo to inspect.');
       return;
     }
@@ -1048,28 +1202,57 @@ const App = {
     const laser = document.getElementById('scanner-laser');
     if (laser) laser.classList.remove('hidden');
 
-    const zones = StorageManager.getZones();
-    const targetZone = zones.find(z => z.id === this.scanTargetZoneId) || zones[0];
-
     try {
       const settings = StorageManager.getSettings();
-      const result = await VisionEngine.analyzeMultipleImages(photos, this.profile, targetZone, settings.apiKey);
+      let primaryResult = null;
+      let primaryZone = null;
 
-      this.currentPlan = {
-        date: new Date().toISOString(),
-        ...result
-      };
-      StorageManager.saveActivePlan(this.currentPlan);
-      StorageManager.addScanRecord(result, targetZone ? targetZone.id : 'all');
+      // Ensure active scanTargetZoneId is analyzed and shown first if it has photos
+      const orderedZoneIds = stagedZoneIds.includes(this.scanTargetZoneId)
+        ? [this.scanTargetZoneId, ...stagedZoneIds.filter(id => id !== this.scanTargetZoneId)]
+        : stagedZoneIds;
+
+      for (const zId of orderedZoneIds) {
+        const photos = this.stagedPhotosByZone[zId];
+        const targetZone = zones.find(z => z.id === zId) || zones[0];
+        const result = await VisionEngine.analyzeMultipleImages(photos, this.profile, targetZone, settings.apiKey);
+        const enrichedResult = {
+          ...result,
+          zoneId: targetZone ? targetZone.id : zId,
+          isPhotoScan: true
+        };
+
+        if (targetZone) {
+          this.latestZoneScanResults[targetZone.id] = enrichedResult;
+          StorageManager.addScanRecord(enrichedResult, targetZone.id);
+        }
+
+        if (!primaryResult) {
+          primaryResult = enrichedResult;
+          primaryZone = targetZone;
+        }
+      }
+
+      if (primaryResult) {
+        this.currentPlan = {
+          date: new Date().toISOString(),
+          ...primaryResult
+        };
+        StorageManager.saveActivePlan(this.currentPlan);
+      }
 
       setTimeout(() => {
         this.isScanning = false;
         if (laser) laser.classList.add('hidden');
-        this.clearStagedPhotos();
+        this.stagedPhotosByZone = {};
+        this.renderVisionZoneSelector();
+        this.renderStagedPhotosUI();
         this.renderAll();
-        this.showScanResultModal(result, targetZone);
+        if (primaryResult) {
+          this.showScanResultModal(primaryResult, primaryZone);
+        }
         NotificationManager.playTone();
-      }, 1400);
+      }, 1200);
 
     } catch (e) {
       console.error('Vision analysis error', e);
@@ -1079,7 +1262,76 @@ const App = {
     }
   },
 
-  showScanResultModal(result, zoneInfo = null) {
+  openSectionAnalysisModal(zoneId = null) {
+    const zones = StorageManager.getZones();
+    const targetZoneId = (zoneId && zoneId !== 'all' && zones.some(z => z.id === zoneId))
+      ? zoneId
+      : (this.activeZoneId !== 'all' && zones.some(z => z.id === this.activeZoneId))
+      ? this.activeZoneId
+      : (zones[0] ? zones[0].id : null);
+
+    const targetZone = zones.find(z => z.id === targetZoneId) || zones[0];
+    const result = targetZone ? this.getSectionAnalysisResult(targetZone.id) : this.currentPlan;
+    this.showScanResultModal(result, targetZone);
+  },
+
+  handleModalSectionChange(zoneId) {
+    const zones = StorageManager.getZones();
+    const targetZone = zones.find(z => z.id === zoneId) || zones[0];
+    if (!targetZone) return;
+
+    this.modalViewingZoneId = targetZone.id;
+    const result = this.getSectionAnalysisResult(targetZone.id);
+
+    // Sync active zone & currentPlan so clicking "Apply to Action Planner" applies this section's plan
+    this.activeZoneId = targetZone.id;
+    StorageManager.setActiveZoneId(targetZone.id);
+    if (result) {
+      this.currentPlan = {
+        date: result.date || new Date().toISOString(),
+        ...result
+      };
+    }
+    this.renderHeader();
+    this.renderZoneBar();
+    this.renderDashboard();
+    this.renderTasksList();
+
+    this.showScanResultModal(result, targetZone);
+  },
+
+  jumpToScanModalSection() {
+    const targetId = this.modalViewingZoneId || (StorageManager.getZones()[0]?.id);
+    const modal = document.getElementById('scan-result-modal');
+    if (modal) modal.classList.add('hidden');
+    if (targetId) {
+      this.scanTargetZoneId = targetId;
+      this.activeZoneId = targetId;
+      StorageManager.setActiveZoneId(targetId);
+    }
+    this.switchTab('vision');
+    this.renderVisionZoneSelector();
+    this.renderStagedPhotosUI();
+  },
+
+  showScanResultModal(result = null, zoneInfo = null) {
+    const zones = StorageManager.getZones();
+    let targetZone = zoneInfo;
+    if (!targetZone) {
+      const fallbackId = this.modalViewingZoneId || (this.activeZoneId !== 'all' ? this.activeZoneId : (zones[0]?.id));
+      targetZone = zones.find(z => z.id === fallbackId) || zones[0];
+    }
+
+    if (targetZone) {
+      this.modalViewingZoneId = targetZone.id;
+      if (result && result.isPhotoScan !== false && result.photoCount > 0) {
+        this.latestZoneScanResults[targetZone.id] = result;
+      }
+    }
+
+    const activeResult = result || (targetZone ? this.getSectionAnalysisResult(targetZone.id) : this.currentPlan);
+    if (!activeResult) return;
+
     const verdictEl = document.getElementById('modal-verdict');
     const healthEl = document.getElementById('modal-health');
     const densityEl = document.getElementById('modal-density');
@@ -1088,24 +1340,84 @@ const App = {
     const stressEl = document.getElementById('modal-stress');
     const hotspotsListEl = document.getElementById('modal-hotspots-list');
     const modalSectionName = document.getElementById('modal-section-name');
+    const modalSelect = document.getElementById('modal-section-select');
+    const modalPills = document.getElementById('modal-section-pills');
+    const modalCountBadge = document.getElementById('modal-section-count-badge');
+    const scanMoreBtnText = document.getElementById('modal-scan-more-btn-text');
 
-    if (modalSectionName) {
-      modalSectionName.innerText = zoneInfo ? `${zoneInfo.name} (${result.photoCount} photos)` : `Composite Turf Scan (${result.photoCount} photos)`;
+    if (modalCountBadge) {
+      const scannedCount = zones.filter(z => {
+        const r = this.latestZoneScanResults[z.id] || StorageManager.getZonePlan(z.id);
+        return r && r.isPhotoScan !== false && r.photoCount > 0;
+      }).length;
+      modalCountBadge.innerText = scannedCount > 0
+        ? `${scannedCount}/${zones.length} Photo Scanned`
+        : `${zones.length} Yard Area${zones.length === 1 ? '' : 's'}`;
     }
 
-    if (verdictEl) verdictEl.innerText = result.overallVerdict;
-    if (healthEl) healthEl.innerText = `${result.healthScore}%`;
-    if (densityEl) densityEl.innerText = `${result.densityScore}%`;
-    if (dgciEl) dgciEl.innerText = `${result.darkGreenColorIndex}/100`;
-    if (weedEl) weedEl.innerText = result.weedPressure;
-    if (stressEl) stressEl.innerText = result.diseaseOrStress;
+    if (modalSelect && zones.length > 0) {
+      modalSelect.innerHTML = zones.map(z => {
+        const zRes = this.latestZoneScanResults[z.id] || StorageManager.getZonePlan(z.id);
+        const hasPhoto = zRes && zRes.isPhotoScan !== false && zRes.photoCount > 0;
+        const pCount = hasPhoto ? zRes.photoCount : 0;
+        const labelSuffix = hasPhoto
+          ? `📸 ${pCount} photo${pCount === 1 ? '' : 's'} (${zRes.healthScore}% Health)`
+          : `🌱 Profile Baseline (${z.hoc}mm)`;
+        return `
+          <option value="${z.id}" ${targetZone && targetZone.id === z.id ? 'selected' : ''}>
+            ${z.name} — ${labelSuffix}
+          </option>
+        `;
+      }).join('');
+    }
+
+    if (modalPills && zones.length > 0) {
+      modalPills.innerHTML = zones.map(z => {
+        const zRes = this.latestZoneScanResults[z.id] || StorageManager.getZonePlan(z.id);
+        const hasPhoto = zRes && zRes.isPhotoScan !== false && zRes.photoCount > 0;
+        const isSelected = targetZone && targetZone.id === z.id;
+        return `
+          <button type="button" onclick="App.handleModalSectionChange('${z.id}')" class="px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1 flex-shrink-0 ${isSelected ? 'bg-emerald-600 text-white shadow-sm' : hasPhoto ? 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100' : 'bg-white/80 text-slate-600 border border-slate-200 hover:bg-white'}">
+            <span>${hasPhoto ? '📸' : '🌱'} ${z.name}</span>
+            ${hasPhoto ? `<span class="text-[9px] px-1 rounded ${isSelected ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'}">${zRes.healthScore}%</span>` : ''}
+          </button>
+        `;
+      }).join('');
+    }
+
+    const pCount = activeResult.photoCount || 0;
+    const isPhotoScan = activeResult.isPhotoScan !== false && pCount > 0;
+
+    if (modalSectionName) {
+      if (targetZone) {
+        const scanTag = isPhotoScan
+          ? `${pCount} photo${pCount === 1 ? '' : 's'} scanned`
+          : `Agronomic Baseline`;
+        modalSectionName.innerText = `${targetZone.name} • ${scanTag} • ${targetZone.hoc}mm`;
+      } else {
+        modalSectionName.innerText = `Composite Turf Scan (${pCount} photo${pCount === 1 ? '' : 's'})`;
+      }
+    }
+
+    if (scanMoreBtnText && targetZone) {
+      scanMoreBtnText.innerText = isPhotoScan
+        ? `Add / Update Photos for ${targetZone.name}`
+        : `Snap / Upload Photos for ${targetZone.name}`;
+    }
+
+    if (verdictEl) verdictEl.innerText = activeResult.overallVerdict;
+    if (healthEl) healthEl.innerText = `${activeResult.healthScore}%`;
+    if (densityEl) densityEl.innerText = `${activeResult.densityScore}%`;
+    if (dgciEl) dgciEl.innerText = `${activeResult.darkGreenColorIndex}/100`;
+    if (weedEl) weedEl.innerText = activeResult.weedPressure;
+    if (stressEl) stressEl.innerText = activeResult.diseaseOrStress;
 
     if (hotspotsListEl) {
-      if (result.hotspots && result.hotspots.length > 0) {
+      if (activeResult.hotspots && activeResult.hotspots.length > 0) {
         hotspotsListEl.innerHTML = `
           <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
             <span class="font-bold flex items-center gap-1">⚠️ Pinpointed Micro-Problems:</span>
-            ${result.hotspots.map(h => `
+            ${activeResult.hotspots.map(h => `
               <div class="pl-2 border-l-2 border-amber-400">
                 <strong>${h.label}</strong>
                 <p class="text-[11px] text-amber-800">${h.recommendation}</p>
@@ -1122,6 +1434,9 @@ const App = {
 
     const modal = document.getElementById('scan-result-modal');
     if (modal) modal.classList.remove('hidden');
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
   },
 
   closeModal() {
@@ -1777,8 +2092,8 @@ const App = {
   async analyzeOnboardingZonePhotos(zonePhotos, zoneIds) {
     const zones = StorageManager.getZones();
     const settings = StorageManager.getSettings();
-    let latestResult = null;
-    let latestZone = null;
+    let firstResult = null;
+    let firstZone = null;
 
     this.showToast(`🔍 Blade is inspecting ${zoneIds.length} lawn section${zoneIds.length === 1 ? '' : 's'}...`);
 
@@ -1787,22 +2102,36 @@ const App = {
       const targetZone = zones.find(z => z.id === zId) || zones[0];
       try {
         const result = await VisionEngine.analyzeMultipleImages(photos, this.profile, targetZone, settings.apiKey);
-        StorageManager.addScanRecord(result, targetZone ? targetZone.id : 'all');
-        latestResult = result;
-        latestZone = targetZone;
+        const enriched = {
+          ...result,
+          zoneId: targetZone ? targetZone.id : zId,
+          isPhotoScan: true
+        };
+        if (targetZone) {
+          this.latestZoneScanResults[targetZone.id] = enriched;
+          StorageManager.addScanRecord(enriched, targetZone.id);
+        }
+        if (!firstResult) {
+          firstResult = enriched;
+          firstZone = targetZone;
+        }
       } catch (e) {
         console.warn('Onboarding photo analysis skipped for zone', zId, e);
       }
     }
 
-    if (latestResult) {
+    if (firstResult) {
       this.currentPlan = {
         date: new Date().toISOString(),
-        ...latestResult
+        ...firstResult
       };
+      if (firstZone) {
+        this.activeZoneId = firstZone.id;
+        StorageManager.setActiveZoneId(firstZone.id);
+      }
       StorageManager.saveActivePlan(this.currentPlan);
       this.renderAll();
-      this.showScanResultModal(latestResult, latestZone);
+      this.showScanResultModal(firstResult, firstZone);
       NotificationManager.playTone();
     } else {
       this.handleProfileChange();
@@ -1951,22 +2280,29 @@ const App = {
       return;
     }
 
-    container.innerHTML = history.slice(0, 6).map(scan => `
-      <div class="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 text-xs">
-        <div>
-          <div class="flex items-center gap-1.5">
-            <span class="font-medium text-slate-800">${scan.formattedDate}</span>
-            <span class="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">${scan.photoCount || 1} photo${scan.photoCount === 1 ? '' : 's'}</span>
+    const zones = StorageManager.getZones();
+    container.innerHTML = history.slice(0, 6).map(scan => {
+      const zName = scan.zoneName || zones.find(z => z.id === scan.zoneId)?.name || 'Lawn Section';
+      const targetZId = scan.zoneId && scan.zoneId !== 'all' ? scan.zoneId : (zones[0]?.id || 'all');
+      return `
+        <div onclick="App.openSectionAnalysisModal('${targetZId}')" class="flex items-center justify-between p-3 bg-white hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 text-xs cursor-pointer transition-all">
+          <div class="min-w-0 pr-2">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="font-bold text-slate-800">${zName}</span>
+              <span class="text-[10px] text-slate-400">• ${scan.formattedDate}</span>
+              <span class="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">${scan.photoCount || 1} photo${scan.photoCount === 1 ? '' : 's'}</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-0.5 truncate">${scan.overallVerdict}</p>
           </div>
-          <p class="text-[11px] text-slate-400 mt-0.5">${scan.overallVerdict.slice(0, 48)}...</p>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">
+              ${scan.healthScore}%
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+          </div>
         </div>
-        <div class="flex items-center gap-3">
-          <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">
-            ${scan.healthScore}%
-          </span>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   },
 
   renderAnalytics() {
