@@ -1,0 +1,14 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment & Keys
+.env
+.env.local
+
+# Logs & Python cache
+__pycache__/
+*.pyc
+task*.log

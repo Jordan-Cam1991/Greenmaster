@@ -1,0 +1,16 @@
+{
+  "name": "GreenMaster AI - Precision Lawn Care",
+  "short_name": "GreenMaster",
+  "description": "AI-powered precision lawn management, weekly vision analysis & agronomic planner",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#064e3b",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23059669'/><path d='M35 70 C35 45 45 30 50 20 C55 30 65 45 65 70 Z' fill='%23a7f3d0'/><path d='M25 70 C28 50 38 40 45 32 C43 48 35 62 25 70 Z' fill='%2334d399'/><path d='M75 70 C72 50 62 40 55 32 C57 48 65 62 75 70 Z' fill='%2334d399'/></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

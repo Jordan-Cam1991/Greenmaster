@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>GreenMaster AI - Precision Lawn Care</title>
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            turf: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              950: '#022c22'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="h-full bg-slate-100 text-slate-800 antialiased flex flex-col justify-between">
+
+  <!-- Mobile View Container -->
+  <div class="w-full max-w-lg mx-auto bg-slate-50 min-h-screen flex flex-col shadow-2xl relative pb-28">
+
+    <!-- Sticky App Header -->
+    <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-600/20">
+            <i data-lucide="sprout" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h1 id="header-lawn-name" class="font-bold text-slate-900 text-base leading-tight">My Turf</h1>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span id="header-tier-badge" class="px-2 py-0.5 rounded-full text-[10px] font-semibold badge-pro">Full Professional</span>
+              <span class="text-[11px] text-slate-400">• Updated weekly</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Health Ring Score -->
+        <div class="flex items-center gap-1 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full cursor-pointer" onclick="App.switchTab('analytics')">
+          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span class="text-xs font-bold text-emerald-800" id="header-health-score">86%</span>
+          <span class="text-[10px] text-emerald-600 font-medium uppercase tracking-wider">Health</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN VIEWS -->
+
+    <!-- TAB 1: PLANNER VIEW -->
+    <main id="view-planner" class="tab-view p-4 space-y-4">
+      <!-- Horizon Multi-tab Pill Bar -->
+      <div class="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
+          <button data-horizon="oneWeek" class="horizon-tab active px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all">
+            1 Week
+          </button>
+          <button data-horizon="twoWeeks" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
+            2 Weeks
+          </button>
+          <button data-horizon="oneMonth" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
+            1 Month
+          </button>
+          <button data-horizon="oneQuarter" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
+            Quarter
+          </button>
+          <button data-horizon="halfYear" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
+            6 Months
+          </button>
+          <button data-horizon="oneYear" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
+            1 Year
+          </button>
+        </div>
+      </div>
+
+      <!-- Horizon Header & Progress -->
+      <div class="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-4 rounded-3xl shadow-lg relative overflow-hidden">
+        <div class="absolute -right-4 -bottom-6 opacity-10 pointer-events-none">
+          <i data-lucide="calendar" class="w-36 h-36"></i>
+        </div>
+        <div class="relative z-10">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider">AI Tailored Action Plan</span>
+            <button id="export-calendar-btn" class="flex items-center gap-1 text-[11px] bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors border border-white/15">
+              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
+              <span>Sync to Calendar</span>
+            </button>
+          </div>
+          <h2 id="current-horizon-title" class="text-xl font-bold mt-1">Next Week (7 Days)</h2>
+          <p id="current-horizon-sub" class="text-xs text-slate-300 mt-0.5">Immediate precision tasks based on latest scan</p>
+
+          <!-- Progress bar -->
+          <div class="mt-4 pt-3 border-t border-white/10">
+            <div class="flex justify-between text-[11px] text-emerald-200 mb-1">
+              <span>Horizon Completion</span>
+              <span id="horizon-progress-text" class="font-medium">0 of 4 Completed (0%)</span>
+            </div>
+            <div class="w-full bg-white/15 h-2 rounded-full overflow-hidden">
+              <div id="horizon-progress-bar" class="bg-gradient-to-r from-emerald-400 to-teal-300 h-full w-0 transition-all duration-500 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actionable Tasks List -->
+      <div id="tasks-container" class="space-y-3">
+        <!-- Dynamically injected by App.renderTasksList() -->
+      </div>
+    </main>
+
+    <!-- TAB 2: VISION SCANNER VIEW -->
+    <main id="view-vision" class="tab-view hidden p-4 space-y-4">
+      <div class="text-center space-y-1">
+        <h2 class="text-lg font-bold text-slate-900">Weekly Turf Vision AI</h2>
+        <p class="text-xs text-slate-500">Take a photo of your turf to diagnose health and auto-refresh your planner</p>
+      </div>
+
+      <!-- Privacy & Ephemeral Data Callout -->
+      <div class="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 p-3 rounded-2xl text-xs text-emerald-900">
+        <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600 flex-shrink-0"></i>
+        <span><strong>Storage & Privacy Friendly:</strong> Photos are processed on-device and ephemeral. No heavy images are stored on your phone.</span>
+      </div>
+
+      <!-- Camera Scanner Dropzone -->
+      <div id="photo-dropzone" class="relative bg-white rounded-3xl border-2 border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500 transition-all shadow-sm overflow-hidden min-h-[260px]">
+        <input type="file" id="lawn-photo-input" accept="image/*" capture="environment" class="absolute inset-0 opacity-0 cursor-pointer z-20">
+
+        <!-- Laser line animation when scanning -->
+        <div id="scanner-laser" class="scanner-laser hidden z-10"></div>
+
+        <!-- Preview Image -->
+        <img id="scanner-preview" class="absolute inset-0 w-full h-full object-cover hidden z-0" alt="Lawn preview">
+
+        <div class="relative z-10 flex flex-col items-center">
+          <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-3 shadow-inner">
+            <i data-lucide="camera" class="w-8 h-8"></i>
+          </div>
+          <span class="font-bold text-slate-800 text-sm" id="scan-btn-text">Snap or Upload Lawn Photo</span>
+          <span class="text-xs text-slate-400 mt-1" id="scanner-status">Supports Camera or Photo Library</span>
+        </div>
+      </div>
+
+      <!-- Preset Test Turfs (Instant Demonstration) -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Try Demo Turf Presets</span>
+        <div class="grid grid-cols-2 gap-2">
+          <button data-demo-turf="golf_green" class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 text-left transition-all btn-press">
+            <span class="text-xs font-bold text-slate-800 block">⛳ Golf Green</span>
+            <span class="text-[10px] text-slate-500">12mm Reel, ultra-dense</span>
+          </button>
+          <button data-demo-turf="stressed_dry" class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-left transition-all btn-press">
+            <span class="text-xs font-bold text-slate-800 block">☀️ Thirsty / Dry</span>
+            <span class="text-[10px] text-slate-500">Drought stress test</span>
+          </button>
+          <button data-demo-turf="weedy_patchy" class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left transition-all btn-press">
+            <span class="text-xs font-bold text-slate-800 block">🌿 Weed Pressure</span>
+            <span class="text-[10px] text-slate-500">Clover & broadleaf</span>
+          </button>
+          <button data-demo-turf="healthy_lawn" class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 text-left transition-all btn-press">
+            <span class="text-xs font-bold text-slate-800 block">🏡 Healthy Lawn</span>
+            <span class="text-[10px] text-slate-500">Suburban couch lawn</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Weekly Scan History -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Weekly Scan History</span>
+          <span class="text-[11px] text-slate-400">Zero data bloat</span>
+        </div>
+        <div id="history-scans-list" class="space-y-2">
+          <!-- Dynamically filled -->
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 3: LAWN PROFILE VIEW -->
+    <main id="view-profile" class="tab-view hidden p-4 space-y-4">
+      <div class="text-center space-y-1">
+        <h2 class="text-lg font-bold text-slate-900">Turf & Maintenance Profile</h2>
+        <p class="text-xs text-slate-500">Tell the AI your target standard, equipment, and watering regimen</p>
+      </div>
+
+      <form id="profile-form" class="space-y-4">
+        <!-- Target Approach Standard -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Target Lawn Approach</label>
+          <select id="prof-tier" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+            <option value="low_maintenance">🛋️ Low Maintenance (Weekend Warrior - chill, monthly care)</option>
+            <option value="semi_pro">🏆 Semi-Professional (Lawn Enthusiast - striping pride & foliar feed)</option>
+            <option value="full_pro" selected>⛳ Full Professional (Golf Course / Bowling Green standard)</option>
+          </select>
+          <p class="text-[11px] text-slate-400">Adjusting this immediately recalculates your 1W, 2W, 1M, 1Q, 6M, and 1Y maintenance tasks.</p>
+        </div>
+
+        <!-- Grass & Cut Height -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Grass Variety & Cut Height</label>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Grass Type</span>
+              <select id="prof-grass-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500">
+                <option value="Bermuda / Couch">Bermuda / Couch (TifTuf, Santa Ana)</option>
+                <option value="Buffalo / St Augustine">Buffalo / St Augustine (Sir Walter)</option>
+                <option value="Zoysia">Zoysia (Empire, Sir Grange)</option>
+                <option value="Kikuyu">Kikuyu</option>
+                <option value="Kentucky Bluegrass">Kentucky Bluegrass (KBG)</option>
+                <option value="Tall Fescue">Tall Fescue / Turf Type</option>
+                <option value="Perennial Ryegrass">Perennial Ryegrass</option>
+              </select>
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Height of Cut (HOC)</span>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="prof-hoc" min="5" max="80" value="12" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500">
+                <span class="text-xs font-semibold text-slate-500">mm</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span class="text-[11px] text-slate-500 block mb-1">Lawn Area</span>
+            <div class="flex items-center gap-1.5">
+              <input type="number" id="prof-area" min="10" max="5000" value="250" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800">
+              <span class="text-xs font-semibold text-slate-500">m²</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sprinklers & Watering -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Irrigation & Sprinklers</label>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Sprinkler Setup</span>
+              <select id="prof-sprinklers" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800">
+                <option value="In-Ground MP Rotators">In-Ground MP Rotators</option>
+                <option value="In-Ground Pop-up Sprays">In-Ground Pop-up Sprays</option>
+                <option value="Smart Rachio / B-hyve">Smart WiFi Controller</option>
+                <option value="Oscillating Hose Sprinkler">Hose-end Oscillating</option>
+                <option value="Manual Hand Watering">Manual Hand Watering</option>
+              </select>
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Watering Frequency</span>
+              <select id="prof-watering-freq" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800">
+                <option value="1 time/week">1x / week (Deep soak)</option>
+                <option value="2 times/week" selected>2x / week (Optimal deep)</option>
+                <option value="3 times/week">3x / week (High heat)</option>
+                <option value="Daily light cycle">Daily light mist</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Equipment Owned -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">Equipment Owned</label>
+            <span class="text-[10px] text-slate-400">Select all that apply</span>
+          </div>
+          <div id="equipment-checklist" class="grid grid-cols-1 gap-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Fertilisers & Soil Amendments -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Fertilisers Owned</label>
+          <div id="fertilisers-checklist" class="grid grid-cols-1 gap-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Herbicides, Pre-emergents & PGR -->
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Herbicides & Regulators</label>
+          <div id="herbicides-checklist" class="grid grid-cols-1 gap-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-600/25 transition-all btn-press">
+          Save Profile & Recalculate Plan
+        </button>
+      </form>
+    </main>
+
+    <!-- TAB 4: TURF SCIENCE & ANALYTICS VIEW -->
+    <main id="view-analytics" class="tab-view hidden p-4 space-y-4">
+      <div class="text-center space-y-1">
+        <h2 class="text-lg font-bold text-slate-900">Turf Agronomy & Metrics</h2>
+        <p class="text-xs text-slate-500">Calculated metrics based on your area, grass type, and maintenance tier</p>
+      </div>
+
+      <!-- Metrics Cards Grid -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div class="flex items-center gap-2 text-emerald-600 mb-1">
+            <i data-lucide="flask-conical" class="w-4 h-4"></i>
+            <span class="text-[11px] font-bold uppercase tracking-wider">Annual Nitrogen</span>
+          </div>
+          <span id="metric-n-budget" class="text-xl font-extrabold text-slate-900">4.5 kg N / Year</span>
+          <p class="text-[10px] text-slate-400 mt-1">Calibrated for healthy tillering without soft excess growth</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div class="flex items-center gap-2 text-blue-600 mb-1">
+            <i data-lucide="scissors" class="w-4 h-4"></i>
+            <span class="text-[11px] font-bold uppercase tracking-wider">Mow Schedule</span>
+          </div>
+          <span id="metric-mow-freq" class="text-xl font-extrabold text-slate-900">2 - 3x per week</span>
+          <p class="text-[10px] text-slate-400 mt-1">Adhering to the 1/3 cut rule for zero scalp shock</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div class="flex items-center gap-2 text-amber-600 mb-1">
+            <i data-lucide="ruler" class="w-4 h-4"></i>
+            <span class="text-[11px] font-bold uppercase tracking-wider">Target HOC</span>
+          </div>
+          <span id="metric-hoc" class="text-xl font-extrabold text-slate-900">12 mm (0.47")</span>
+          <p class="text-[10px] text-slate-400 mt-1">Bowling green & golf fairway standard</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div class="flex items-center gap-2 text-purple-600 mb-1">
+            <i data-lucide="thermometer" class="w-4 h-4"></i>
+            <span class="text-[11px] font-bold uppercase tracking-wider">Pre-Emergent</span>
+          </div>
+          <span class="text-xl font-extrabold text-slate-900">13°C (55°F)</span>
+          <p class="text-[10px] text-slate-400 mt-1">Soil temp threshold to lock out summer weeds</p>
+        </div>
+      </div>
+
+      <!-- The Golden Agronomy Rules -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Greenkeeper Wisdom</span>
+        <div class="space-y-2 text-xs text-slate-600">
+          <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2">
+            <span class="text-base">📐</span>
+            <div>
+              <strong class="text-slate-900">The 1/3rd Rule:</strong> Never remove more than one-third of the grass blade in a single mow. Cutting lower damages photosynthetic reserves.
+            </div>
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2">
+            <span class="text-base">💧</span>
+            <div>
+              <strong class="text-slate-900">Deep & Infrequent:</strong> Water 1-2 times weekly for longer periods rather than short daily sprinkles. Forces roots 15cm+ into subsoil.
+            </div>
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2">
+            <span class="text-base">🧪</span>
+            <div>
+              <strong class="text-slate-900">Spoon-Feeding:</strong> Small, frequent liquid applications of Nitrogen + Iron create deep color without explosive surging.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 5: REMINDERS & SETTINGS VIEW -->
+    <main id="view-reminders" class="tab-view hidden p-4 space-y-4">
+      <div class="text-center space-y-1">
+        <h2 class="text-lg font-bold text-slate-900">Push Notifications & Reminders</h2>
+        <p class="text-xs text-slate-500">Stay on top of weekly photo checkups and maintenance cycles</p>
+      </div>
+
+      <!-- Permission Card -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Notification Status</span>
+          <span id="notification-permission-badge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Checking...</span>
+        </div>
+        <p class="text-xs text-slate-500">GreenMaster sends weekly reminders for your photo scans, pre-emergent windows, and mowing cycles.</p>
+        
+        <div class="flex gap-2">
+          <button id="enable-notifications-btn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all btn-press flex items-center justify-center gap-1.5">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            <span>Enable Push Notifications</span>
+          </button>
+          <button id="test-notification-btn" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all btn-press">
+            Test Chime
+          </button>
+        </div>
+      </div>
+
+      <!-- Optional Gemini API Key -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Google Gemini Vision API Key (Optional)</label>
+        <p class="text-xs text-slate-500">The app has built-in agronomy vision that works 100% offline. If you want direct multi-modal cloud analysis with Gemini 1.5 Flash, paste an API key below.</p>
+        <input type="password" id="gemini-api-key-input" placeholder="AIzaSy..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono">
+        <button onclick="StorageManager.saveSettings({...StorageManager.getSettings(), apiKey: document.getElementById('gemini-api-key-input').value}); App.showToast('API Key Saved!');" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-xl transition-all">
+          Save API Key
+        </button>
+      </div>
+    </main>
+
+    <!-- BOTTOM APP NAVIGATION BAR -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 py-2 max-w-lg mx-auto">
+      <div class="flex items-center justify-around px-2">
+        <button data-tab="planner" class="flex flex-col items-center gap-1 py-1 px-3 text-emerald-600 transition-colors btn-press">
+          <i data-lucide="calendar" class="w-5 h-5"></i>
+          <span class="text-[10px] font-semibold">Planner</span>
+        </button>
+
+        <button data-tab="vision" class="flex flex-col items-center gap-1 py-1 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
+          <div class="w-10 h-10 -mt-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30">
+            <i data-lucide="scan" class="w-5 h-5"></i>
+          </div>
+          <span class="text-[10px] font-semibold">AI Vision</span>
+        </button>
+
+        <button data-tab="profile" class="flex flex-col items-center gap-1 py-1 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
+          <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+          <span class="text-[10px] font-semibold">Profile</span>
+        </button>
+
+        <button data-tab="analytics" class="flex flex-col items-center gap-1 py-1 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
+          <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+          <span class="text-[10px] font-semibold">Science</span>
+        </button>
+
+        <button data-tab="reminders" class="flex flex-col items-center gap-1 py-1 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
+          <i data-lucide="bell" class="w-5 h-5"></i>
+          <span class="text-[10px] font-semibold">Alerts</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- SCAN RESULT MODAL -->
+    <div id="scan-result-modal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-200">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <i data-lucide="sparkles" class="w-4 h-4"></i>
+            </div>
+            <h3 class="font-bold text-slate-900 text-base">Weekly Turf Analysis</h3>
+          </div>
+          <button onclick="App.closeModal()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+            ✕
+          </button>
+        </div>
+
+        <!-- Scores Grid -->
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-emerald-50 border border-emerald-200/80 p-2.5 rounded-2xl">
+            <span class="text-[10px] text-emerald-700 uppercase font-semibold block">Health</span>
+            <span id="modal-health" class="text-lg font-extrabold text-emerald-900">88%</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-2xl">
+            <span class="text-[10px] text-slate-500 uppercase font-semibold block">Density</span>
+            <span id="modal-density" class="text-lg font-extrabold text-slate-800">85%</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-2xl">
+            <span class="text-[10px] text-slate-500 uppercase font-semibold block">Color (DGCI)</span>
+            <span id="modal-dgci" class="text-lg font-extrabold text-slate-800">82/100</span>
+          </div>
+        </div>
+
+        <!-- Diagnostic verdict -->
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs space-y-1.5">
+          <span class="font-bold text-slate-800 block">Agronomist Diagnosis:</span>
+          <p id="modal-verdict" class="text-slate-600 leading-relaxed"></p>
+        </div>
+
+        <div class="text-xs space-y-1 text-slate-600">
+          <div>Weed Pressure: <strong id="modal-weed" class="text-slate-800">Low</strong></div>
+          <div>Canopy Stress: <strong id="modal-stress" class="text-slate-800">None detected</strong></div>
+        </div>
+
+        <button onclick="App.closeModal()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-600/25 transition-all">
+          Apply to Action Planner →
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Lucide Icon Initialization -->
+  <script>
+    lucide.createIcons();
+    // Re-create icons whenever DOM changes
+    const observer = new MutationObserver(() => lucide.createIcons());
+    observer.observe(document.body, { childList: true, subtree: true });
+  </script>
+
+  <!-- Core Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/planner-engine.js"></script>
+  <script src="js/vision-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

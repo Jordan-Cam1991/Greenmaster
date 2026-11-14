@@ -1,0 +1,92 @@
+/* Custom styles for GreenMaster AI */
+:root {
+  --primary-emerald: #059669;
+  --primary-glow: rgba(5, 150, 105, 0.25);
+  --lawn-dark: #064e3b;
+  --lawn-card-bg: rgba(255, 255, 255, 0.85);
+  --safe-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* Glassmorphism cards */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.glass-dark {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Hide scrollbars while preserving scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Pulse animation for AI scanner */
+@keyframes scan-line {
+  0% { top: 0%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.scanner-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #10b981, #34d399, #10b981, transparent);
+  box-shadow: 0 0 15px #10b981, 0 0 30px #34d399;
+  animation: scan-line 2.2s ease-in-out infinite alternate;
+}
+
+/* Badge styles */
+.badge-pro {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+}
+
+.badge-semi {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+}
+
+.badge-low {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+/* Checkbox smooth transform */
+.task-checkbox:checked + label {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+/* Touch ripple feel */
+.btn-press:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+/* Horizon tab transitions */
+.horizon-tab.active {
+  background-color: #059669;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.28);
+}
