@@ -670,5 +670,261 @@ const PlannerEngine = {
       halfYear,
       oneYear
     };
+  },
+
+  /**
+   * Smart Background Calendar Engine (Google Calendar Schedule Style)
+   * Automatically calculates exact calendar dates for Mowing, Deep Soak Watering,
+   * Lawn Food, and Photo Check-ins based on:
+   * 1. When you last mowed / watered / fed (`zoneLogs`)
+   * 2. Live weather & rain forecast (`weather`) — auto-skips deep soak if rain is coming!
+   * 3. Latest AI photo scan (`scanResult`) — adds spot treatments if photos show dry patches or weeds!
+   */
+  generateCalendarSchedule({ activeZone = null, zones = [], weather = null, zoneLogs = {}, scanResult = null, daysCount = 7 }) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const daysSince = (isoStr, fallbackDays) => {
+      if (!isoStr) return fallbackDays;
+      const d = new Date(isoStr);
+      d.setHours(0, 0, 0, 0);
+      return Math.max(0, Math.round((now - d) / msPerDay));
+    };
+
+    const daysSinceMow = daysSince(zoneLogs.lastMow, 3);
+    const daysSinceWater = daysSince(zoneLogs.lastWater, 4);
+    const daysSinceFeed = daysSince(zoneLogs.lastFeed, 11);
+
+    // Determine section name & cut height in the background
+    const sectionName = activeZone ? activeZone.name : 'All Lawn Sections';
+    const hocDisplay = activeZone
+      ? `${activeZone.hoc}mm`
+      : zones.length > 0
+        ? zones.map(z => `${z.name.split(' ')[0]} ${z.hoc}mm`).slice(0, 2).join(' • ')
+        : '15mm';
+
+    const isShowpiece = activeZone ? activeZone.attentionLevel === 'showpiece' : true;
+    const isRecovery = (activeZone && activeZone.attentionLevel === 'recovery') ||
+      (scanResult && (scanResult.healthScore < 70 || (scanResult.diseaseOrStress || '').toLowerCase().includes('dry')));
+    const hasWeeds = scanResult && ((scanResult.weedPressure || '').includes('High') || (scanResult.weedPressure || '').includes('Moderate'));
+
+    // Intervals (days)
+    const mowInterval = isShowpiece ? 4 : 6;
+    const waterInterval = isRecovery ? 3 : 4;
+    const feedInterval = 14;
+
+    const firstMowOffset = Math.max(0, mowInterval - daysSinceMow);
+    const firstWaterOffset = Math.max(0, waterInterval - daysSinceWater);
+    const firstFeedOffset = Math.max(1, feedInterval - daysSinceFeed);
+
+    const forecastDays = (weather && Array.isArray(weather.forecastDays)) ? weather.forecastDays : [];
+    const getWeatherForOffset = (offset) => {
+      if (forecastDays[offset]) return forecastDays[offset];
+      return {
+        maxTemp: (weather?.currentTemp || 24) + (offset % 3 === 0 ? 1 : 0),
+        minTemp: 16,
+        rain: 0,
+        prob: 15
+      };
+    };
+
+    const isRainyDay = (offset) => {
+      const w = getWeatherForOffset(offset);
+      return (w.prob >= 60 || w.rain >= 4);
+    };
+
+    // Build day buckets
+    const dayBuckets = [];
+    const dayNamesShort = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNamesFull = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+
+    for (let i = 0; i < daysCount; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      const w = getWeatherForOffset(i);
+      const rainy = isRainyDay(i);
+
+      // Week range header (on Day 0 or Mondays/Sundays)
+      let weekHeader = null;
+      if (i > 0 && d.getDay() === 0) {
+        const endW = new Date(d);
+        endW.setDate(d.getDate() + 6);
+        const sameMonth = d.getMonth() === endW.getMonth();
+        weekHeader = sameMonth
+          ? `${monthNamesFull[d.getMonth()]} ${d.getDate()} – ${endW.getDate()}`
+          : `${monthNamesFull[d.getMonth()]} ${d.getDate()} – ${monthNamesFull[endW.getMonth()]} ${endW.getDate()}`;
+      }
+
+      const dateKey = d.toISOString().split('T')[0];
+
+      dayBuckets.push({
+        offset: i,
+        dateObj: d,
+        dateKey,
+        dayName: dayNamesShort[d.getDay()],
+        dayNumber: d.getDate(),
+        monthShort: monthNamesShort[d.getMonth()],
+        monthFull: monthNamesFull[d.getMonth()],
+        year: d.getFullYear(),
+        isToday: i === 0,
+        weekHeader,
+        weather: w,
+        isRainy: rainy,
+        allDayBanner: rainy ? `🌧️ Rain Forecast (${w.prob}%) — Sprinklers Auto-Skipped` : null,
+        events: []
+      });
+    }
+
+    // Helper to place an event on a dry day (shifts +1 day if raining)
+    const placeOnDryDay = (preferredOffset, eventObj) => {
+      let target = preferredOffset;
+      if (target < daysCount && dayBuckets[target].isRainy && target + 1 < daysCount && !dayBuckets[target + 1].isRainy) {
+        target = target + 1;
+        eventObj.subtext += ' (Shifted 1d for rain)';
+      }
+      if (target >= 0 && target < daysCount) {
+        dayBuckets[target].events.push({
+          ...eventObj,
+          dateKey: dayBuckets[target].dateKey,
+          id: `${eventObj.type}_${dayBuckets[target].dateKey}`
+        });
+        return dayBuckets[target];
+      }
+      return null;
+    };
+
+    // 1. Schedule Mows across the horizon
+    let nextMowDay = null;
+    for (let m = firstMowOffset; m < daysCount; m += mowInterval) {
+      const reason = m === firstMowOffset
+        ? (daysSinceMow === 0 ? 'Mowed today' : `Last mowed ${daysSinceMow}d ago`)
+        : `Regular ${mowInterval}-day cut cycle`;
+      const placed = placeOnDryDay(m, {
+        type: 'mow',
+        icon: '✂️',
+        title: `Mow ${sectionName} (${hocDisplay})`,
+        timeLabel: '8:00 – 8:30 am',
+        startHour: 8,
+        subtext: `${reason} • Trim top 1/3 only`,
+        color: 'emerald'
+      });
+      if (!nextMowDay && placed) nextMowDay = placed;
+    }
+
+    // 2. Schedule Deep Soak Watering based on weather & last water
+    let nextWaterDay = null;
+    for (let wDay = firstWaterOffset; wDay < daysCount; wDay += waterInterval) {
+      const rainNearby = isRainyDay(wDay) || (wDay > 0 && isRainyDay(wDay - 1)) || (wDay + 1 < daysCount && isRainyDay(wDay + 1));
+      if (rainNearby) {
+        if (wDay < daysCount && !dayBuckets[wDay].allDayBanner) {
+          dayBuckets[wDay].allDayBanner = `🌧️ Rain nearby — Deep soak skipped automatically`;
+        }
+        continue;
+      }
+      const wInfo = getWeatherForOffset(wDay);
+      const reason = wDay === firstWaterOffset
+        ? `Last watered ${daysSinceWater}d ago • ${wInfo.maxTemp}°C forecast`
+        : `Auto-scheduled for ${wInfo.maxTemp}°C dry weather`;
+      if (wDay >= 0 && wDay < daysCount) {
+        const ev = {
+          id: `water_${dayBuckets[wDay].dateKey}`,
+          dateKey: dayBuckets[wDay].dateKey,
+          type: 'water',
+          icon: '💧',
+          title: `Deep Soak Watering (25 min)`,
+          timeLabel: '6:00 – 6:25 am',
+          startHour: 6,
+          subtext: reason,
+          color: 'sky'
+        };
+        dayBuckets[wDay].events.push(ev);
+        if (!nextWaterDay) nextWaterDay = dayBuckets[wDay];
+      }
+    }
+
+    // 3. Schedule Photo-Driven Treatments (if photos showed dry spots or weeds)
+    if (isRecovery) {
+      placeOnDryDay(1 < daysCount ? 1 : 0, {
+        type: 'feed',
+        icon: '🩹',
+        title: `Soil Wetting Agent Soak (${sectionName})`,
+        timeLabel: '9:00 – 9:20 am',
+        startHour: 9,
+        subtext: `Added from AI photo check-in to fix dry patches`,
+        color: 'amber'
+      });
+    }
+    if (hasWeeds) {
+      placeOnDryDay(2 < daysCount ? 2 : 0, {
+        type: 'weed',
+        icon: '🎯',
+        title: `Quick Weed Spot-Treat (10 min)`,
+        timeLabel: '9:30 – 9:45 am',
+        startHour: 9,
+        subtext: `Added from AI photo check-in`,
+        color: 'amber'
+      });
+    }
+
+    // 4. Schedule Regular Lawn Food based on lastFeed
+    let nextFeedDay = null;
+    for (let fDay = firstFeedOffset; fDay < daysCount; fDay += feedInterval) {
+      const reason = fDay === firstFeedOffset
+        ? `Last fed ${daysSinceFeed}d ago (2-week cycle)`
+        : `Fortnightly green-up feed`;
+      const placed = placeOnDryDay(fDay, {
+        type: 'feed',
+        icon: '🌱',
+        title: `Apply Lawn Food (${sectionName})`,
+        timeLabel: '9:00 – 9:20 am',
+        startHour: 9,
+        subtext: reason,
+        color: 'teal'
+      });
+      if (!nextFeedDay && placed) nextFeedDay = placed;
+    }
+
+    // 5. Schedule Weekly Photo Check-In so AI tracks progress
+    for (let pDay = 5; pDay < daysCount; pDay += 7) {
+      dayBuckets[pDay].events.push({
+        id: `photo_${dayBuckets[pDay].dateKey}`,
+        dateKey: dayBuckets[pDay].dateKey,
+        type: 'photo',
+        icon: '📸',
+        title: `Log Lawn Photos (Weekly AI Check-in)`,
+        timeLabel: '5:00 – 5:05 pm',
+        startHour: 17,
+        subtext: `Snap a quick photo so Blade can update next week's schedule`,
+        color: 'indigo'
+      });
+    }
+
+    // Ensure Today always shows a clear status banner if no events fell on Today
+    if (dayBuckets[0] && dayBuckets[0].events.length === 0 && !dayBuckets[0].allDayBanner) {
+      dayBuckets[0].allDayBanner = `☀️ ${dayBuckets[0].weather.maxTemp}°C — No lawn work needed today!`;
+    }
+
+    // Sort events inside each day by startHour
+    dayBuckets.forEach(b => {
+      b.events.sort((a, c) => (a.startHour || 8) - (c.startHour || 8));
+    });
+
+    return {
+      days: dayBuckets,
+      summary: {
+        daysSinceMow,
+        daysSinceWater,
+        daysSinceFeed,
+        nextMowLabel: nextMowDay ? (nextMowDay.isToday ? 'Today' : `${nextMowDay.dayName} ${nextMowDay.dayNumber} ${nextMowDay.monthShort}`) : 'This week',
+        nextWaterLabel: weather?.shouldSkipSprinklers
+          ? 'Skipped (Rain)'
+          : nextWaterDay
+            ? (nextWaterDay.isToday ? 'Today' : `${nextWaterDay.dayName} ${nextWaterDay.dayNumber} ${nextWaterDay.monthShort}`)
+            : 'In 3 days',
+        nextFeedLabel: nextFeedDay ? (nextFeedDay.isToday ? 'Today' : `${nextFeedDay.dayName} ${nextFeedDay.dayNumber} ${nextFeedDay.monthShort}`) : `In ${firstFeedOffset} days`
+      }
+    };
   }
 };

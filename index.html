@@ -86,49 +86,13 @@
 
     <!-- MAIN VIEWS -->
 
-    <!-- TAB 1: DASHBOARD VIEW (AT A GLANCE) -->
-    <main id="view-dashboard" class="tab-view p-4 space-y-4">
+    <!-- TAB 1: DASHBOARD VIEW (ULTRA-LEAN & SELF-EXPLANATORY) -->
+    <main id="view-dashboard" class="tab-view p-4 space-y-3.5">
 
-      <!-- Multi-Zone / Segment Selector Pills -->
-      <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="flex items-center justify-between px-1 mb-1.5">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Yard Zones</span>
-          <span class="text-[10px] text-emerald-700 font-medium">Tap to switch area</span>
-        </div>
-        <div id="dash-zone-selector" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          <!-- Rendered by App.renderZoneBar() -->
-        </div>
-      </div>
-
-      <!-- Lawn Vitals Strip (Soil Temp • Mowing Direction • Growth Window) -->
-      <div class="grid grid-cols-3 gap-2">
-        <div onclick="App.switchTab('weather')" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer btn-press">
-          <span class="text-base">🌡️</span>
-          <div class="min-w-0">
-            <span class="text-[9px] font-bold uppercase text-slate-400 block">Soil Temp</span>
-            <span id="dash-vital-soil-temp" class="text-xs font-extrabold text-slate-800 truncate block">19°C • Active</span>
-          </div>
-        </div>
-        <div onclick="App.rotateMowPattern()" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer btn-press" title="Tap to rotate mowing direction">
-          <span id="dash-vital-pattern-icon" class="text-base">↕️</span>
-          <div class="min-w-0">
-            <span class="text-[9px] font-bold uppercase text-slate-400 block">Next Cut Dir</span>
-            <span id="dash-vital-pattern-text" class="text-xs font-extrabold text-emerald-800 truncate block">N–S Stripes</span>
-          </div>
-        </div>
-        <div onclick="App.openDosageCalculator()" class="bg-emerald-50 p-2.5 rounded-2xl border border-emerald-200 shadow-2xs flex items-center gap-2 cursor-pointer btn-press">
-          <span class="text-base">🧮</span>
-          <div class="min-w-0">
-            <span class="text-[9px] font-bold uppercase text-emerald-700 block">Toolbox</span>
-            <span class="text-xs font-extrabold text-emerald-900 truncate block">Dose Calc</span>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Blade Mascot Greeting & Daily Tip -->
+      <!-- 1. Photo Check-In Card (Primary AI Loop: Log Photos -> AI Updates Calendar) -->
       <div class="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-3">
         <!-- Blade SVG Avatar -->
-        <svg class="w-14 h-16 mascot-bounce flex-shrink-0" viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="w-12 h-14 mascot-bounce flex-shrink-0" viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
           <ellipse cx="50" cy="122" rx="26" ry="5" fill="#064e3b" opacity="0.2"/>
           <path d="M50 10 C62 30 76 65 72 105 C70 118 64 122 50 122 C36 122 30 118 28 105 C24 65 38 30 50 10 Z" fill="url(#dash-blade-grad)" stroke="#047857" stroke-width="2.5"/>
           <path d="M50 20 Q53 70 50 120" stroke="#34d399" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
@@ -152,268 +116,160 @@
           </defs>
         </svg>
 
-        <div class="flex-1 text-xs">
-          <div class="flex items-center gap-1.5 font-bold text-slate-800">
-            <span>Blade's Pocket Tip</span>
-            <span class="px-2 py-0.2 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-bold">Lawn Pal</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-extrabold text-slate-900">How's your lawn tracking?</span>
+            <span id="dash-photo-status-badge" class="px-2 py-0.5 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-bold">AI Ready</span>
           </div>
-          <p id="dash-mascot-tip" class="text-slate-600 mt-0.5 leading-relaxed">
-            Looking sharp! Remember the 1/3rd cut rule: never take off more than a third in one go to keep my root system deep and strong! ✂️
+          <p id="dash-mascot-tip" class="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Snap a quick photo anytime — I'll check how your grass is tracking and update your calendar automatically!
           </p>
+          <button onclick="App.switchTab('vision')" class="mt-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-xl shadow-xs transition-all btn-press inline-flex items-center gap-1.5">
+            <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+            <span>Log Lawn Photos</span>
+          </button>
         </div>
       </div>
-      
-      <!-- Smart Rain Forecast Banner -->
-      <div id="dash-rain-alert-banner" class="p-3.5 rounded-3xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 shadow-sm flex items-start gap-3 transition-all cursor-pointer" onclick="App.switchTab('weather')">
-        <div class="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-sky-600 flex-shrink-0 shadow-sm">
+
+      <!-- 2. Up Next on Your Calendar (Hero Card) -->
+      <div class="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-4 rounded-3xl shadow-lg relative overflow-hidden">
+        <div class="relative z-10">
+          <div class="flex items-center justify-between">
+            <span id="dash-next-action-time" class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              Up Next on Your Calendar
+            </span>
+            <span id="dash-next-action-cat" class="px-2 py-0.5 rounded-full text-[10px] bg-white/15 text-emerald-100 font-semibold">
+              8:00 – 8:30 am
+            </span>
+          </div>
+          <h3 id="dash-next-action-text" class="text-base font-extrabold mt-1.5 leading-snug">✂️ Mow Lawn</h3>
+          <p id="dash-next-action-sub" class="text-xs text-emerald-100/80 mt-1 leading-snug">Auto-scheduled from your last mow & dry forecast</p>
+          
+          <div class="mt-3.5 pt-3 border-t border-white/15 flex items-center justify-between gap-2">
+            <button onclick="App.completeHeroNextTask()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all btn-press flex items-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Done (Log Now)</span>
+            </button>
+            <button onclick="App.switchTab('planner')" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/15 flex items-center gap-1 transition-all btn-press">
+              <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+              <span>Open Calendar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. When You Last Did It -> When It's Next on Your Calendar -->
+      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-extrabold text-slate-800">Last Done & Next Scheduled</span>
+          <span class="text-[10px] text-slate-400">Tap "Done Today" to update calendar</span>
+        </div>
+
+        <!-- Mowing Row -->
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-base flex-shrink-0">✂️</div>
+            <div class="min-w-0">
+              <span class="text-xs font-extrabold text-slate-900 block">Mow Lawn</span>
+              <span class="text-[11px] text-slate-500 block truncate">
+                Last: <strong id="dash-last-mow-text" class="text-slate-700">3 days ago</strong> • Next: <strong id="dash-next-mow-date" class="text-emerald-700">Tomorrow</strong>
+              </span>
+            </div>
+          </div>
+          <button onclick="App.logQuickMow()" class="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-emerald-300 shadow-2xs transition-all btn-press flex-shrink-0">
+            ✓ Done Today
+          </button>
+        </div>
+
+        <!-- Deep Watering Row -->
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center text-base flex-shrink-0">💧</div>
+            <div class="min-w-0">
+              <span class="text-xs font-extrabold text-slate-900 block">Deep Soak Water</span>
+              <span class="text-[11px] text-slate-500 block truncate">
+                Last: <strong id="dash-water-status" class="text-slate-700">4 days ago</strong> • Next: <strong id="dash-next-water-date" class="text-sky-700">Sun 15 Nov</strong>
+              </span>
+            </div>
+          </div>
+          <button onclick="App.logQuickWater()" class="px-3 py-1.5 bg-white hover:bg-sky-50 text-sky-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-sky-300 shadow-2xs transition-all btn-press flex-shrink-0">
+            ✓ Done Today
+          </button>
+        </div>
+
+        <!-- Lawn Food Row -->
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-base flex-shrink-0">🌱</div>
+            <div class="min-w-0">
+              <span class="text-xs font-extrabold text-slate-900 block">Lawn Food / Treatment</span>
+              <span class="text-[11px] text-slate-500 block truncate">
+                Last: <strong id="dash-fert-status" class="text-slate-700">10 days ago</strong> • Next: <strong id="dash-next-feed-date" class="text-teal-700">In 4 days</strong>
+              </span>
+            </div>
+          </div>
+          <button onclick="App.logQuickFeed()" class="px-3 py-1.5 bg-white hover:bg-teal-50 text-teal-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-teal-300 shadow-2xs transition-all btn-press flex-shrink-0">
+            ✓ Done Today
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. Compact Background Weather & Watering Status Bar -->
+      <div id="dash-rain-alert-banner" class="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 flex items-center gap-3 transition-all cursor-pointer" onclick="App.switchTab('weather')">
+        <div class="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-sky-600 flex-shrink-0 shadow-2xs">
           <i data-lucide="cloud-rain" class="w-4 h-4"></i>
         </div>
-        <div class="flex-1 text-xs">
+        <div class="flex-1 text-xs min-w-0">
           <div class="flex items-center justify-between">
-            <span class="font-bold uppercase tracking-wider text-[10px] opacity-80">Smart Weather Watch</span>
-            <span id="dash-weather-prob" class="font-semibold text-[11px]">Checking rain...</span>
+            <span class="font-bold text-[10px] uppercase tracking-wider opacity-75">Automatic Weather Watch</span>
+            <span id="dash-weather-prob" class="font-bold text-[10px]">Checking forecast...</span>
           </div>
-          <p id="dash-rain-verdict" class="mt-0.5 leading-relaxed font-medium">Checking live rainfall forecast to optimize your sprinkler schedule...</p>
+          <p id="dash-rain-verdict" class="mt-0.5 text-[11px] font-medium truncate">Checking rain forecast to schedule your next deep soak...</p>
         </div>
       </div>
 
-      <!-- Quick Action: Next Upcoming Task Card (Visual & Action-First) -->
-      <div class="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-5 rounded-3xl shadow-lg relative overflow-hidden">
-        <div class="absolute -right-4 -bottom-4 opacity-10 pointer-events-none">
-          <i data-lucide="check-circle-2" class="w-32 h-32"></i>
-        </div>
-        <div class="relative z-10">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              Today's #1 Move
-            </span>
-            <span id="dash-next-action-cat" class="px-2 py-0.5 rounded-full text-[10px] bg-white/15 text-emerald-200 border border-white/10 font-semibold">
-              Mowing • High
-            </span>
-          </div>
-          <h3 id="dash-next-action-text" class="text-base font-extrabold mt-2 leading-snug">Reel Mow (↕️ N–S Stripes)</h3>
-          
-          <!-- Visual Spec Chips (Zone • Deck/Dose • Time) -->
-          <div id="dash-next-action-chips" class="flex items-center gap-1.5 flex-wrap mt-2">
-            <!-- Populated by App.renderDashboard() -->
-          </div>
-          <p id="dash-next-action-sub" class="text-[11px] text-slate-300 mt-1.5 leading-snug"></p>
-          
-          <div class="mt-4 pt-3 border-t border-white/15 flex items-center justify-between gap-2">
-            <button onclick="App.completeHeroNextTask()" class="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all btn-press flex items-center gap-1.5">
-              <i data-lucide="check" class="w-4 h-4"></i>
-              <span>Mark Done</span>
-            </button>
-            <div class="flex items-center gap-2">
-              <button onclick="App.openDosageCalculator()" class="px-2.5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/15 transition-all btn-press" title="Dosage Calculator">
-                🧮 Dose
-              </button>
-              <button onclick="App.switchTab('planner')" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white font-bold text-xs rounded-xl border border-white/15 flex items-center gap-1 transition-all btn-press">
-                <span>Full Plan</span>
-                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Key Glance Grid (Mow, Water, Fertiliser, HOC) -->
-      <div class="grid grid-cols-2 gap-3">
-        <!-- Last Mow Card -->
-        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between text-slate-400 mb-1.5">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Last Mow</span>
-              <i data-lucide="scissors" class="w-4 h-4 text-emerald-600"></i>
-            </div>
-            <span id="dash-last-mow-text" class="text-sm font-bold text-slate-900 block">2 days ago</span>
-            <span class="text-[10px] text-slate-400">Target: 2-3x / week</span>
-          </div>
-          <button onclick="App.logQuickMow()" class="mt-3 w-full py-2 bg-slate-50 hover:bg-emerald-50 text-emerald-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-emerald-300 transition-all btn-press flex items-center justify-center gap-1">
-            <i data-lucide="check" class="w-3 h-3"></i>
-            <span>Log Mow</span>
-          </button>
-        </div>
-
-        <!-- Fertiliser & Nutrition Card -->
-        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between text-slate-400 mb-1.5">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nutrition</span>
-              <i data-lucide="flask-conical" class="w-4 h-4 text-teal-600"></i>
-            </div>
-            <span id="dash-fert-status" class="text-sm font-bold text-slate-900 block">Fed 10 days ago</span>
-            <span id="dash-fert-sub" class="text-[10px] text-slate-400">Pre-emergent: 38d active</span>
-          </div>
-          <button onclick="App.logQuickFeed()" class="mt-3 w-full py-2 bg-slate-50 hover:bg-teal-50 text-teal-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-teal-300 transition-all btn-press flex items-center justify-center gap-1">
-            <i data-lucide="plus" class="w-3 h-3"></i>
-            <span>Log Feed</span>
-          </button>
-        </div>
-
-        <!-- Irrigation & Sprinkler Card -->
-        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between text-slate-400 mb-1.5">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Watering</span>
-              <i data-lucide="droplets" class="w-4 h-4 text-sky-600"></i>
-            </div>
-            <span id="dash-water-status" class="text-sm font-bold text-slate-900 block">Watered 5d ago</span>
-            <span class="text-[10px] text-slate-400">Schedule: 2x / week</span>
-          </div>
-          <button onclick="App.logQuickWater()" class="mt-3 w-full py-2 bg-slate-50 hover:bg-sky-50 text-sky-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-sky-300 transition-all btn-press flex items-center justify-center gap-1">
-            <i data-lucide="droplet" class="w-3 h-3"></i>
-            <span>Log Water</span>
-          </button>
-        </div>
-
-        <!-- Height of Cut (HOC) Card -->
-        <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between text-slate-400 mb-1.5">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cut Height</span>
-              <i data-lucide="ruler" class="w-4 h-4 text-amber-600"></i>
-            </div>
-            <span id="dash-hoc-text" class="text-sm font-bold text-slate-900 block">12mm (0.47")</span>
-            <span id="dash-hoc-sub" class="text-[10px] text-slate-400 truncate block">Bowling green standard</span>
-          </div>
-          <button onclick="App.switchTab('profile')" class="mt-3 w-full py-2 bg-slate-50 hover:bg-amber-50 text-amber-700 font-bold text-[11px] rounded-xl border border-slate-200 hover:border-amber-300 transition-all btn-press flex items-center justify-center gap-1">
-            <i data-lucide="sliders" class="w-3 h-3"></i>
-            <span>Adjust HOC</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick Action Buttons -->
-      <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Weekly Routine</span>
-          <button type="button" onclick="App.openSectionAnalysisModal()" class="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1">
-            <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>
-            <span>Section Breakdown</span>
-          </button>
-        </div>
-        <div class="flex gap-2">
-          <button onclick="App.switchTab('vision')" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-md shadow-emerald-600/20 transition-all btn-press flex items-center justify-center gap-1.5">
-            <i data-lucide="camera" class="w-4 h-4"></i>
-            <span>Inspect Sections & Hotspots</span>
-          </button>
-          <button onclick="App.showOnboarding(true)" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all btn-press flex items-center gap-1">
-            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
-            <span>Chat with Blade</span>
-          </button>
-        </div>
-      </div>
     </main>
 
-    <!-- TAB 2: PLANNER VIEW -->
-    <main id="view-planner" class="tab-view hidden p-4 space-y-3.5">
-      <!-- 7-Day Visual Weather & Lawn Window Strip -->
-      <div class="bg-white p-3 rounded-3xl border border-slate-200 shadow-sm space-y-2">
-        <div class="flex items-center justify-between px-0.5">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">7-Day Lawn Weather Window</span>
-          <button type="button" onclick="App.openDosageCalculator()" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 btn-press">
-            <span>🧮 Mix & Dose Calculator</span>
-          </button>
-        </div>
-        <div id="planner-week-strip" class="grid grid-cols-7 gap-1 text-center">
-          <!-- Dynamically populated by App.renderPlannerWeekStrip() -->
-        </div>
-      </div>
-
-      <!-- Yard Zone Filter & Aligned vs Segmented Schedule Toggle -->
+    <!-- TAB 2: GOOGLE CALENDAR STYLE PLANNER VIEW -->
+    <main id="view-planner" class="tab-view hidden p-4 space-y-3">
+      <!-- Google Calendar Style Top Header Bar -->
       <div class="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
         <div class="flex items-center justify-between gap-2">
-          <div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Schedule Organization</span>
-            <span class="text-[10px] text-slate-400">Align all zones together or segment by yard area</span>
-          </div>
-          <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 flex-shrink-0">
-            <button type="button" id="planner-mode-segmented-btn" onclick="App.setPlannerMode('segmented')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all bg-emerald-600 text-white shadow-2xs">
-              🗂️ Segmented
-            </button>
-            <button type="button" id="planner-mode-aligned-btn" onclick="App.setPlannerMode('aligned')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all text-slate-600 hover:text-slate-900">
-              🔗 Align All
-            </button>
-          </div>
-        </div>
-
-        <!-- Yard Zone Pills in Planner -->
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Filter by Yard Zone</span>
-            <button type="button" onclick="App.openSectionAnalysisModal()" class="text-[10px] font-bold text-emerald-700 hover:underline">
-              Compare Zone Health →
-            </button>
-          </div>
-          <div id="planner-zone-selector" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            <!-- Dynamically rendered by App.renderPlannerZoneBar() -->
-          </div>
-        </div>
-
-        <!-- Specific Zone Requirement Summary Banner -->
-        <div id="planner-zone-spec-banner" class="p-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-emerald-950">
-          <!-- Dynamically updated with zone grass, HOC, sun exposure & mode info -->
-        </div>
-      </div>
-
-      <!-- Horizon Multi-tab Pill Bar -->
-      <div class="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
-          <button data-horizon="oneWeek" class="horizon-tab active px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all">
-            1 Week
-          </button>
-          <button data-horizon="twoWeeks" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
-            2 Weeks
-          </button>
-          <button data-horizon="oneMonth" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
-            1 Month
-          </button>
-          <button data-horizon="oneQuarter" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
-            Quarter
-          </button>
-          <button data-horizon="halfYear" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
-            6 Months
-          </button>
-          <button data-horizon="oneYear" class="horizon-tab px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-slate-100 text-slate-700">
-            1 Year
-          </button>
-        </div>
-      </div>
-
-      <!-- Horizon Header & Progress -->
-      <div class="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-4 rounded-3xl shadow-lg relative overflow-hidden">
-        <div class="absolute -right-4 -bottom-6 opacity-10 pointer-events-none">
-          <i data-lucide="calendar" class="w-36 h-36"></i>
-        </div>
-        <div class="relative z-10">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider">AI Tailored Action Plan</span>
-            <button id="export-calendar-btn" class="flex items-center gap-1 text-[11px] bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors border border-white/15">
-              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
-              <span>Sync to Calendar</span>
-            </button>
-          </div>
-          <h2 id="current-horizon-title" class="text-xl font-bold mt-1">Next Week (7 Days)</h2>
-          <p id="current-horizon-sub" class="text-xs text-slate-300 mt-0.5">Immediate precision tasks based on latest scans</p>
-
-          <!-- Progress bar -->
-          <div class="mt-4 pt-3 border-t border-white/10">
-            <div class="flex justify-between text-[11px] text-emerald-200 mb-1">
-              <span>Horizon Completion</span>
-              <span id="horizon-progress-text" class="font-medium">0 of 4 Completed (0%)</span>
+          <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex flex-col items-center justify-center leading-none">
+              <span class="text-[8px] font-extrabold uppercase" id="cal-header-day-name">SAT</span>
+              <span class="text-xs font-extrabold" id="cal-header-day-num">14</span>
             </div>
-            <div class="w-full bg-white/15 h-2 rounded-full overflow-hidden">
-              <div id="horizon-progress-bar" class="bg-gradient-to-r from-emerald-400 to-teal-300 h-full w-0 transition-all duration-500 rounded-full"></div>
+            <div>
+              <h2 id="current-horizon-title" class="text-base font-extrabold text-slate-900 leading-tight">November 2026</h2>
+              <p id="current-horizon-sub" class="text-[11px] text-slate-500">Auto-scheduled from weather, last actions & photos</p>
             </div>
           </div>
+
+          <button id="export-calendar-btn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl transition-colors flex items-center gap-1.5 flex-shrink-0 btn-press">
+            <i data-lucide="calendar-plus" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span>Add to Phone</span>
+          </button>
+        </div>
+
+        <!-- Clean 3-Option Range Selector: Week | Fortnight | Month -->
+        <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
+          <button data-horizon="oneWeek" class="horizon-tab active py-2 rounded-xl text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs">
+            Week (7d)
+          </button>
+          <button data-horizon="twoWeeks" class="horizon-tab py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:text-slate-900">
+            Fortnight (14d)
+          </button>
+          <button data-horizon="oneMonth" class="horizon-tab py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:text-slate-900">
+            Month (30d)
+          </button>
         </div>
       </div>
 
-      <!-- Actionable Tasks List -->
-      <div id="tasks-container" class="space-y-3">
-        <!-- Dynamically injected -->
+      <!-- Google Calendar Schedule Feed (Day Column on Left + Event Blocks on Right) -->
+      <div id="tasks-container" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-3.5 space-y-4">
+        <!-- Dynamically injected by App.renderTasksList() -->
       </div>
     </main>
 
@@ -800,18 +656,18 @@
           <span class="text-[10px] font-semibold">Home</span>
         </button>
 
-        <!-- 2. Planner -->
+        <!-- 2. Calendar -->
         <button data-tab="planner" class="flex flex-col items-center gap-1 py-1 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
           <i data-lucide="calendar" class="w-5 h-5"></i>
-          <span class="text-[10px] font-semibold">Planner</span>
+          <span class="text-[10px] font-semibold">Calendar</span>
         </button>
 
-        <!-- 3. AI VISION (ELEVATED PROMINENT IN THE CENTER) -->
+        <!-- 3. LOG PHOTOS (ELEVATED PROMINENT IN THE CENTER) -->
         <button data-tab="vision" class="flex flex-col items-center gap-1 py-1 px-3 text-slate-400 hover:text-emerald-600 transition-colors btn-press">
           <div class="w-12 h-12 -mt-6 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white">
             <i data-lucide="camera" class="w-6 h-6"></i>
           </div>
-          <span class="text-[10px] font-bold text-emerald-700">AI Vision</span>
+          <span class="text-[10px] font-bold text-emerald-700">Log Photos</span>
         </button>
 
         <!-- 4. Weather & Water -->
@@ -1238,7 +1094,7 @@
             <span id="modal-scan-more-btn-text">Add / Update Photos for This Area</span>
           </button>
           <button onclick="App.closeModal()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-600/25 transition-all btn-press">
-            Apply to Action Planner →
+            Update My Calendar Schedule →
           </button>
         </div>
       </div>
