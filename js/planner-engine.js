@@ -8,11 +8,11 @@
  * 5. Half Year (6 Months)
  * 6. One Year (12 Months)
  *
- * Integrates comprehensive onboarding history (last mow, last fertilise,
- * pre-emergent status, mower type, and product recommendations).
+ * Integrates multi-zone segments (Front/Back/Side, shade levels),
+ * custom gear owned, and precise maintenance history.
  */
 const PlannerEngine = {
-  generateDynamicPlan({ cvMetrics, weedLevel, weeds, diseaseOrStress, profile }) {
+  generateDynamicPlan({ cvMetrics, weedLevel, weeds, diseaseOrStress, profile, zones = [] }) {
     const tier = profile.tier || 'semi_pro';
     const grass = profile.grassType || 'Bermuda / Couch';
     const hoc = Number(profile.hoc) || 15;
@@ -20,40 +20,45 @@ const PlannerEngine = {
     const equipment = profile.equipment || [];
     const fertilisers = profile.fertilisers || [];
     const herbicides = profile.herbicides || [];
+    const customOwned = profile.customOwnedProducts || [];
 
     const hasReel = equipment.some(e => e.toLowerCase().includes('reel') || e.toLowerCase().includes('cylinder'));
     const hasSprayer = equipment.some(e => e.toLowerCase().includes('sprayer'));
     const hasDethatcher = equipment.some(e => e.toLowerCase().includes('dethatch') || e.toLowerCase().includes('scarifi'));
     const hasAerator = equipment.some(e => e.toLowerCase().includes('aera'));
     const hasPgr = profile.specialTreatments?.some(t => t.toLowerCase().includes('pgr') || t.toLowerCase().includes('primo'));
-    const hasPreEmergent = herbicides.some(h => h.toLowerCase().includes('prodiamine') || h.toLowerCase().includes('barricade') || h.toLowerCase().includes('pre-emergent'));
-    const hasWettingAgent = profile.specialTreatments?.some(t => t.toLowerCase().includes('wetting') || t.toLowerCase().includes('surfactant'));
-    const hasFertiliser = fertilisers.length > 0;
+    const hasPreEmergent = herbicides.some(h => h.toLowerCase().includes('prodiamine') || h.toLowerCase().includes('barricade') || h.toLowerCase().includes('pre-emergent') || h.toLowerCase().includes('spartan')) || customOwned.some(c => c.toLowerCase().includes('pre-emergent') || c.toLowerCase().includes('prodiamine') || c.toLowerCase().includes('barricade'));
+    const hasWettingAgent = profile.specialTreatments?.some(t => t.toLowerCase().includes('wetting') || t.toLowerCase().includes('surfactant')) || customOwned.some(c => c.toLowerCase().includes('wetting') || c.toLowerCase().includes('hydra'));
+    const hasFertiliser = fertilisers.length > 0 || customOwned.length > 0;
+
+    // Detect shaded zones
+    const shadedZone = zones.find(z => z.sunExposure && (z.sunExposure.includes('Partial') || z.sunExposure.includes('Heavy') || z.sunExposure.includes('Shade')));
 
     // 1. ONE WEEK (Immediate 7-Day Actions)
     const oneWeek = [];
 
-    // Check if new to lawn care & missing essentials -> suggest purchasing starter pack
+    // Pre-emergent urgent check from consultation
+    if (history.preEmergentStatus === 'none' || history.preEmergentStatus === 'over_6m') {
+      const prodName = customOwned.find(c => c.toLowerCase().includes('barricade') || c.toLowerCase().includes('prodiamine') || c.toLowerCase().includes('spartan')) || 'Prodiamine / Spartan';
+      oneWeek.push({
+        id: 'w1_urgent_pre_emergent',
+        task: hasPreEmergent ? `Apply Pre-Emergent barrier (${prodName})` : '🛒 Order & Apply Pre-Emergent Barrier',
+        urgency: 'Critical',
+        category: 'Protection',
+        tip: hasPreEmergent 
+          ? `Your lawn currently lacks active weed protection. Apply your ${prodName} and water in with 12mm to seal the topsoil before summer weed seeds wake up.` 
+          : 'Crucial: Get Prodiamine / Barricade (Available at lawntips.com) to lock out weed seeds before germination.'
+      });
+    }
+
+    // Nutrition check
     if (!hasFertiliser) {
       oneWeek.push({
         id: 'w1_shop_fert',
         task: '🛒 Procure Essential Lawn Nutrition Kit',
         urgency: 'Critical',
         category: 'Fertiliser',
-        tip: 'You indicated you do not have fertilisers yet. Visit lawntips.com to get a balanced slow-release granular or foliar starter pack (e.g. Lawn Tips Growth / Foliar Duo).'
-      });
-    }
-
-    // Pre-emergent urgent check from consultation
-    if (history.preEmergentStatus === 'none' || history.preEmergentStatus === 'over_6m') {
-      oneWeek.push({
-        id: 'w1_urgent_pre_emergent',
-        task: hasPreEmergent ? 'Apply Pre-Emergent barrier (Prodiamine / Spartan)' : '🛒 Order & Apply Pre-Emergent Barrier',
-        urgency: 'Critical',
-        category: 'Protection',
-        tip: hasPreEmergent 
-          ? 'Consultation indicates your lawn has no active weed barrier. Apply immediately and water in with 12mm to seal the soil.' 
-          : 'Crucial: Get Prodiamine / Barricade from lawntips.com to block weed seeds before germination season.'
+        tip: 'Visit lawntips.com to get a balanced slow-release granular or foliar starter pack (e.g. Lawn Tips Growth / Foliar Duo).'
       });
     }
 
@@ -62,16 +67,16 @@ const PlannerEngine = {
     if (lastMowDays >= 10) {
       oneWeek.push({
         id: 'w1_step_down_mow',
-        task: `Gradual Step-Down Mow (Do not scalp)`,
+        task: `Gradual Step-Down Mow (Follow 1/3rd Rule)`,
         urgency: 'High',
         category: 'Mowing',
-        tip: `Since your last cut was ${lastMowDays} days ago, cut high first. Wait 3 days, then bring down to target ${hoc}mm adhering strictly to the 1/3rd rule.`
+        tip: `Since your last mow was ${lastMowDays} days ago, cut high first. Wait 3 days, then bring down to target ${hoc}mm to protect photosynthetic root energy.`
       });
     } else {
       if (tier === 'full_pro') {
         oneWeek.push({
           id: 'w1_mow_1',
-          task: hasReel ? `Cylinder mow at ${hoc}mm (Pattern 1)` : `Mow at ${hoc}mm with sharp blade`,
+          task: hasReel ? `Front / Main Turf: Cylinder mow at ${hoc}mm` : `Mow at ${hoc}mm with sharp blade`,
           urgency: 'Critical',
           category: 'Mowing',
           tip: 'Mow early in the morning once dew dries. Empty catcher to maintain uniform surface roll.'
@@ -109,6 +114,17 @@ const PlannerEngine = {
           tip: 'Check that blade is sharp to prevent frayed brown tips.'
         });
       }
+    }
+
+    // Shaded zone specific mowing advice
+    if (shadedZone) {
+      oneWeek.push({
+        id: 'w1_shade_mow',
+        task: `${shadedZone.name} (Shade Area): Mow higher at ${Math.max(30, shadedZone.hoc)}mm`,
+        urgency: 'Medium',
+        category: 'Mowing',
+        tip: `In ${shadedZone.name}, limited sunlight means grass needs longer leaf blades to capture enough energy. Cutting too low in shade causes thinning.`
+      });
     }
 
     // Irrigation check for week 1
@@ -154,10 +170,11 @@ const PlannerEngine = {
         tip: `Your last fertiliser application was ${lastFertDays} days ago and is still active. Let roots absorb nutrients without risk of salt burn.`
       });
     } else {
+      const customFeed = customOwned.find(c => c.toLowerCase().includes('foliar') || c.toLowerCase().includes('fertiliser') || c.toLowerCase().includes('feed')) || (hasSprayer ? 'Foliar liquid feed with Iron & Nitrogen' : 'Slow-release granular feed');
       if (tier === 'full_pro') {
         twoWeeks.push({
           id: 'w2_foliar',
-          task: 'Liquid foliar spoon-feed (N-P-K + Chelated Iron + Kelp)',
+          task: `Liquid foliar spoon-feed (${customFeed})`,
           urgency: 'High',
           category: 'Fertiliser',
           tip: 'Spoon feeding prevents growth surges while unlocking an unmistakable tournament dark emerald pop.'
@@ -172,7 +189,7 @@ const PlannerEngine = {
       } else if (tier === 'semi_pro') {
         twoWeeks.push({
           id: 'w2_feed',
-          task: hasSprayer ? 'Foliar liquid feed with Iron & Nitrogen' : 'Light granular fertiliser application',
+          task: `${customFeed}`,
           urgency: 'Medium',
           category: 'Fertiliser',
           tip: 'Apply evenly. Water in thoroughly within 24 hours to prevent leaf scorch.'
@@ -197,9 +214,10 @@ const PlannerEngine = {
 
     // 3. ONE MONTH (30-Day Milestone)
     const oneMonth = [];
+    const wettingName = customOwned.find(c => c.toLowerCase().includes('wetting') || c.toLowerCase().includes('hydra')) || 'Tournament-Grade Soil Wetting Agent';
     oneMonth.push({
       id: 'm1_wetting',
-      task: hasWettingAgent ? 'Apply Tournament-Grade Soil Wetting Agent' : '🛒 Get & Apply Wetting Agent (Hydra-Flo / Tournament)',
+      task: hasWettingAgent ? `Apply ${wettingName}` : '🛒 Get & Apply Wetting Agent (Hydra-Flo / Tournament)',
       urgency: 'High',
       category: 'Soil',
       tip: 'Breaks water surface tension, prevents hydrophobic dry spots, and cuts water waste by 30%. (Available at lawntips.com).'

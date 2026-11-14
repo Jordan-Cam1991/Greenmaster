@@ -1,10 +1,12 @@
 /**
  * Main Application Controller for GreenMaster AI
  * Featuring "Blade" — Your Friendly Pocket Lawn Pal & Mascot!
+ * Supports Multi-Zone Segments (Front/Back/Side), Custom Gear Entry, and Initial Onboarding Photos.
  */
 const App = {
   activeTab: 'dashboard',
   activeHorizon: 'oneWeek',
+  activeZoneId: 'all',
   currentPlan: null,
   profile: null,
   weather: null,
@@ -12,12 +14,16 @@ const App = {
 
   // Onboarding wizard state
   onboardingStep: 1,
-  totalOnboardingSteps: 5,
+  totalOnboardingSteps: 6,
   consultationData: {
     pathway: 'existing',
     tier: 'full_pro',
     grassType: 'Bermuda / Couch',
     hoc: 12,
+    zones: [
+      { id: 'front', name: 'Front Yard', grassType: 'Bermuda / Couch', hoc: 12, area: 120, sunExposure: 'Full Sun (6+ hrs)' },
+      { id: 'back', name: 'Back Yard', grassType: 'Buffalo / St Augustine', hoc: 35, area: 130, sunExposure: 'Partial Shade (3-5 hrs)' }
+    ],
     mowerType: 'Cylinder / Reel Mower',
     equipment: ['Cylinder / Reel Mower', 'Battery Backpack Sprayer'],
     lastMowDays: 3,
@@ -27,21 +33,23 @@ const App = {
     lastRenovation: 'last_year',
     sprinklers: 'In-Ground MP Rotators',
     wateringFreq: '2 times/week',
-    fertilisersOwned: ['Liquid Foliar Nitrogen & Iron'],
-    herbicidesOwned: []
+    initialPhotoData: null,
+    customOwnedProducts: []
   },
 
   bladeDialogues: [
     "G'day! I'm <strong>Blade</strong>, your pocket lawn pal! 🌱 Before we dive into the app, let's have a quick chat about your lawn so I can help you achieve all your green dreams! Where are we starting from today?",
-    "Love that! Now, what standard are we shooting for? A chill weekend patch, or a razor-sharp tournament bowling green?",
-    "Nice choice! Let's check your shed. What mower and gear do you have ready to roll?",
+    "Awesome! Let's map your lawn segments. Front yards, backyards, and side passages often have different grass or shade levels!",
+    "Love that! Let's check your shed. What mower and gear do you have ready to roll?",
     "To make your plan super accurate, tell me: when did your grass last get a haircut or some lawn food?",
-    "You're an absolute legend! I've crunched the agronomy and drafted your 6-horizon roadmap. Let's make your neighbours jealous!"
+    "Would you like to snap a quick photo of your turf right now so I can inspect its health and density? 📸 (Or skip and do this later!)",
+    "You're an absolute legend! Here's my diagnosis and recommended gear. If you already have some of these, just let me know what you use!"
   ],
 
   async init() {
     this.profile = StorageManager.getProfile();
     this.currentPlan = StorageManager.getActivePlan();
+    this.activeZoneId = StorageManager.getActiveZoneId();
 
     if (!this.currentPlan) {
       const initialMetrics = {
@@ -56,7 +64,8 @@ const App = {
         weedLevel: 'Low (<2%)',
         weeds: ['Clover spot'],
         diseaseOrStress: 'Healthy vigor',
-        profile: this.profile
+        profile: this.profile,
+        zones: StorageManager.getZones()
       });
       this.currentPlan = {
         date: new Date().toISOString(),
@@ -109,9 +118,18 @@ const App = {
       });
     });
 
+    // Zone switcher pills
+    this.bindZoneEvents();
+
     const photoInput = document.getElementById('lawn-photo-input');
     if (photoInput) {
       photoInput.addEventListener('change', (e) => this.handlePhotoSelected(e));
+    }
+
+    // Onboarding photo input
+    const obPhotoInput = document.getElementById('ob-photo-input');
+    if (obPhotoInput) {
+      obPhotoInput.addEventListener('change', (e) => this.handleOnboardingPhotoSelected(e));
     }
 
     const dropZone = document.getElementById('photo-dropzone');
@@ -181,6 +199,25 @@ const App = {
     }
   },
 
+  bindZoneEvents() {
+    const container = document.getElementById('dash-zone-selector');
+    if (!container) return;
+    container.querySelectorAll('[data-zone-id]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-zone-id');
+        this.switchZone(id);
+      });
+    });
+  },
+
+  switchZone(zoneId) {
+    this.activeZoneId = zoneId;
+    StorageManager.setActiveZoneId(zoneId);
+    this.renderZoneBar();
+    this.renderDashboard();
+    this.renderTasksList();
+  },
+
   switchTab(tab) {
     this.activeTab = tab;
     document.querySelectorAll('.tab-view').forEach(view => {
@@ -219,6 +256,7 @@ const App = {
 
   renderAll() {
     this.renderHeader();
+    this.renderZoneBar();
     this.renderDashboard();
     this.renderTasksList();
     this.renderProfileForm();
@@ -253,8 +291,46 @@ const App = {
     }
   },
 
+  renderZoneBar() {
+    const container = document.getElementById('dash-zone-selector');
+    if (!container) return;
+    const zones = StorageManager.getZones();
+
+    container.innerHTML = `
+      <button data-zone-id="all" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${this.activeZoneId === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+        🌿 All Turf (${this.profile.lawnArea}m²)
+      </button>
+      ${zones.map(z => `
+        <button data-zone-id="${z.id}" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${this.activeZoneId === z.id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+          ${z.name.includes('Front') ? '🏡' : z.name.includes('Back') ? '🌳' : '📐'} ${z.name} (${z.hoc}mm)
+        </button>
+      `).join('')}
+      <button onclick="App.promptAddZone()" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1">
+        <span>+ Add Zone</span>
+      </button>
+    `;
+
+    this.bindZoneEvents();
+  },
+
+  promptAddZone() {
+    const name = prompt('Zone Name (e.g. Side Passage, Nature Strip):', 'Side Yard');
+    if (!name) return;
+    const hoc = prompt('Target Cut Height (HOC in mm):', '20');
+    const sun = prompt('Sun Exposure (Full Sun / Partial Shade / Heavy Shade):', 'Partial Shade');
+    StorageManager.addZone({
+      name,
+      hoc: Number(hoc) || 20,
+      area: 40,
+      sunExposure: sun || 'Partial Shade'
+    });
+    this.handleProfileChange();
+    this.showToast(`Zone "${name}" added!`);
+  },
+
   renderDashboard() {
     const logs = StorageManager.getLogs();
+    const activeZone = StorageManager.getActiveZone();
 
     // 1. Last Mow relative text
     const lastMowEl = document.getElementById('dash-last-mow-text');
@@ -290,23 +366,31 @@ const App = {
       waterStatusEl.innerText = `Watered ${this.formatRelativeTime(logs.lastWater)}`;
     }
 
-    // 5. Height of Cut Target
+    // 5. Height of Cut Target (Filtered by zone if selected)
     const hocTextEl = document.getElementById('dash-hoc-text');
+    const hocSubEl = document.getElementById('dash-hoc-sub');
     if (hocTextEl) {
-      hocTextEl.innerText = `${this.profile.hoc}mm (${(this.profile.hoc / 25.4).toFixed(2)}")`;
+      const hocVal = activeZone ? activeZone.hoc : this.profile.hoc;
+      hocTextEl.innerText = `${hocVal}mm (${(hocVal / 25.4).toFixed(2)}")`;
+      if (hocSubEl) {
+        hocSubEl.innerText = activeZone ? `${activeZone.name} • ${activeZone.sunExposure}` : 'Bowling green standard';
+      }
     }
 
     // 6. Blade Mascot Tip of the Day
     const mascotTipEl = document.getElementById('dash-mascot-tip');
     if (mascotTipEl) {
-      const tips = [
-        "Hey! Remember the 1/3rd rule: never take off more than a third of the blade in one cut to keep my roots strong! ✂️",
-        "If you want that dark tournament emerald pop without exploding growth, liquid spoon-feed iron + nitrogen! 🧪",
-        "A sharp reel or rotary blade stops frayed yellow leaf tips and keeps me disease-free! 💎",
-        "Deep watering at dawn forces my roots to dig deep into the earth! 💧"
-      ];
-      const randomTip = tips[Math.floor(Math.random() * tips.length)];
-      mascotTipEl.innerText = randomTip;
+      if (activeZone && activeZone.sunExposure.includes('Shade')) {
+        mascotTipEl.innerText = `Blade says: "${activeZone.name} gets less sunlight! Keep cut height around ${activeZone.hoc}mm so the leaf blades capture enough energy! ⛅"`;
+      } else {
+        const tips = [
+          "Looking sharp! Remember the 1/3rd cut rule: never take off more than a third in one go to keep my root system deep and strong! ✂️",
+          "If you want that dark tournament emerald pop without exploding growth, liquid spoon-feed iron + nitrogen! 🧪",
+          "A sharp reel or rotary blade stops frayed yellow leaf tips and keeps me disease-free! 💎",
+          "Deep watering at dawn forces my roots to dig deep into the earth! 💧"
+        ];
+        mascotTipEl.innerText = tips[Math.floor(Math.random() * tips.length)];
+      }
     }
 
     this.renderDashboardWeather();
@@ -493,6 +577,24 @@ const App = {
     }
   },
 
+  handleOnboardingPhotoSelected(e) {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const preview = document.getElementById('ob-photo-preview');
+        const statusText = document.getElementById('ob-photo-status');
+        if (preview) {
+          preview.src = event.target.result;
+          preview.classList.remove('hidden');
+        }
+        if (statusText) statusText.innerText = 'Photo captured! Blade will analyze this during plan generation.';
+        this.consultationData.initialPhotoData = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  },
+
   processImageFile(file) {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -520,7 +622,7 @@ const App = {
       };
       StorageManager.saveActivePlan(this.currentPlan);
 
-      StorageManager.addScanRecord(result);
+      StorageManager.addScanRecord(result, this.activeZoneId);
 
       setTimeout(() => {
         this.isScanning = false;
@@ -632,7 +734,6 @@ const App = {
       }
     }
 
-    // Step indicator & progress
     const bubbleEl = document.getElementById('ob-mascot-speech');
     const progressEl = document.getElementById('ob-progress-bar');
     const backBtn = document.getElementById('ob-back-btn');
@@ -648,15 +749,20 @@ const App = {
     }
 
     if (nextBtn) {
-      nextBtn.innerText = this.onboardingStep === this.totalOnboardingSteps ? "Let's Grow! →" : 'Continue →';
+      if (this.onboardingStep === 5) {
+        nextBtn.innerText = 'Continue to Recommendations →';
+      } else if (this.onboardingStep === this.totalOnboardingSteps) {
+        nextBtn.innerText = "Let's Grow! →";
+      } else {
+        nextBtn.innerText = 'Continue →';
+      }
     }
 
-    // Update Blade's friendly dialogue
     if (bubbleEl) {
       bubbleEl.innerHTML = this.bladeDialogues[this.onboardingStep - 1] || "Let's dial in your lawn!";
     }
 
-    if (this.onboardingStep === 5) {
+    if (this.onboardingStep === 6) {
       this.renderConsultationSummary();
     }
 
@@ -671,6 +777,17 @@ const App = {
       this.consultationData.tier = document.querySelector('input[name="ob-tier"]:checked')?.value || 'semi_pro';
       this.consultationData.grassType = document.getElementById('ob-grass-type')?.value || 'Bermuda / Couch';
       this.consultationData.hoc = Number(document.getElementById('ob-hoc')?.value || 15);
+      
+      // Collect zones
+      const frontSun = document.getElementById('ob-front-sun')?.value || 'Full Sun (6+ hrs)';
+      const backSun = document.getElementById('ob-back-sun')?.value || 'Partial Shade (3-5 hrs)';
+      const backGrass = document.getElementById('ob-back-grass')?.value || 'Buffalo / St Augustine';
+      const backHoc = Number(document.getElementById('ob-back-hoc')?.value || 35);
+      
+      this.consultationData.zones = [
+        { id: 'front', name: 'Front Yard', grassType: this.consultationData.grassType, hoc: this.consultationData.hoc, area: 120, sunExposure: frontSun },
+        { id: 'back', name: 'Back Yard', grassType: backGrass, hoc: backHoc, area: 130, sunExposure: backSun }
+      ];
     } else if (step === 3) {
       this.consultationData.mowerType = document.getElementById('ob-mower-type')?.value || 'Cylinder / Reel Mower';
       const eq = [];
@@ -702,58 +819,94 @@ const App = {
           <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
           <span>Blade's Agronomic Assessment:</span>
         </div>
-        <p class="leading-relaxed">Targeting <strong>${d.tier === 'full_pro' ? 'Tournament / Bowling Green Perfection' : d.tier === 'semi_pro' ? 'Semi-Pro Striping Pride' : 'Weekend Warrior Chill'}</strong> with <strong>${d.grassType}</strong> at <strong>${d.hoc}mm</strong>.</p>
+        <p class="leading-relaxed">Targeting <strong>${d.tier === 'full_pro' ? 'Tournament / Bowling Green Perfection' : d.tier === 'semi_pro' ? 'Semi-Pro Striping Pride' : 'Weekend Warrior Chill'}</strong>.</p>
         <div class="pt-1.5 border-t border-emerald-200/80 text-[11px] text-emerald-800 space-y-1">
+          <div>• Front Yard: <strong>${d.grassType} @ ${d.hoc}mm</strong></div>
+          <div>• Back Yard: <strong>${d.zones[1]?.grassType || 'Buffalo'} @ ${d.zones[1]?.hoc || 35}mm (${d.zones[1]?.sunExposure || 'Shaded'})</strong></div>
           <div>• Mower: <strong>${d.mowerType}</strong></div>
-          <div>• Last Haircut: <strong>${d.lastMowDays === 0 ? 'Today' : d.lastMowDays + ' days ago'}</strong></div>
-          <div>• Weed Barrier: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Needs Application'}</strong></div>
+          <div>• Weed Barrier: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Urgent'}</strong></div>
         </div>
       </div>
     `;
     diagContainer.innerHTML = diagnosisHTML;
 
     if (recProductsContainer) {
-      const recs = [];
-
-      if (d.preEmergentStatus === 'none' || d.preEmergentStatus === 'over_6m') {
-        recs.push({
+      const recs = [
+        {
+          key: 'preEmergent',
           name: 'Prodiamine / Spartan Pre-Emergent',
           why: 'Blocks weeds before seeds ever germinate in the topsoil.',
           source: 'Available at lawntips.com',
           url: 'https://lawntips.com'
-        });
-      }
-
-      if (d.tier === 'full_pro' || d.equipment.some(e => e.includes('Sprayer'))) {
-        recs.push({
+        },
+        {
+          key: 'foliar',
           name: 'Lawn Tips Foliar & Chelated Iron Pack',
           why: 'Unlocks deep emerald chlorophyll pop without explosive growth surges.',
           source: 'Available at lawntips.com',
           url: 'https://lawntips.com'
-        });
-      }
+        },
+        {
+          key: 'wetting',
+          name: 'Tournament Wetting Agent (Hydra-Flo)',
+          why: 'Stops dry hydrophobic patches and cuts watering demand by 30%.',
+          source: 'Available at lawntips.com',
+          url: 'https://lawntips.com'
+        }
+      ];
 
-      recs.push({
-        name: 'Tournament Wetting Agent (Hydra-Flo)',
-        why: 'Stops dry hydrophobic patches and cuts watering demand by 30%.',
-        source: 'Available at lawntips.com',
-        url: 'https://lawntips.com'
-      });
+      recProductsContainer.innerHTML = recs.map(r => {
+        const isOwned = d.customOwnedProducts.some(p => p.key === r.key);
+        const ownedText = d.customOwnedProducts.find(p => p.key === r.key)?.name || '';
 
-      recProductsContainer.innerHTML = recs.map(r => `
-        <div class="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between gap-3 text-xs">
-          <div class="space-y-0.5">
-            <strong class="text-slate-900 block">${r.name}</strong>
-            <p class="text-[11px] text-slate-500">${r.why}</p>
-            <span class="text-[10px] text-emerald-700 font-semibold block pt-0.5">${r.source}</span>
+        return `
+          <div class="p-3 bg-white rounded-2xl border ${isOwned ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200'} shadow-sm space-y-2 text-xs">
+            <div class="flex items-start justify-between gap-3">
+              <div class="space-y-0.5">
+                <strong class="text-slate-900 block">${r.name}</strong>
+                <p class="text-[11px] text-slate-500">${r.why}</p>
+                <span class="text-[10px] text-emerald-700 font-semibold block pt-0.5">${r.source}</span>
+              </div>
+              <a href="${r.url}" target="_blank" rel="noopener" class="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-50 text-emerald-800 border border-slate-200 rounded-xl text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                <span>Shop</span>
+                <i data-lucide="external-link" class="w-3 h-3"></i>
+              </a>
+            </div>
+
+            <!-- "I have this" toggle and entry field -->
+            <div class="pt-2 border-t border-slate-100">
+              ${isOwned ? `
+                <div class="flex items-center justify-between text-emerald-800 bg-emerald-100/70 p-2 rounded-xl text-[11px]">
+                  <span>✓ You have: <strong>${ownedText}</strong></span>
+                  <button type="button" onclick="App.removeOwnedProduct('${r.key}')" class="text-xs text-slate-400 hover:text-slate-600">✕ Edit</button>
+                </div>
+              ` : `
+                <button type="button" onclick="App.promptOwnedProduct('${r.key}', '${r.name}')" class="text-[11px] text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                  <span>I already have this (Enter what I use)</span>
+                </button>
+              `}
+            </div>
           </div>
-          <a href="${r.url}" target="_blank" rel="noopener" class="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-50 text-emerald-800 border border-slate-200 rounded-xl text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
-            <span>Shop</span>
-            <i data-lucide="external-link" class="w-3 h-3"></i>
-          </a>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
+  },
+
+  promptOwnedProduct(key, defaultName) {
+    const brand = prompt(`What product do you currently have for ${defaultName}?`, 'Barricade 500EC');
+    if (brand) {
+      this.consultationData.customOwnedProducts = this.consultationData.customOwnedProducts.filter(p => p.key !== key);
+      this.consultationData.customOwnedProducts.push({ key, name: brand });
+      StorageManager.addCustomOwnedProduct(brand);
+      this.renderConsultationSummary();
+      this.showToast(`Saved "${brand}" to your gear profile!`);
+    }
+  },
+
+  removeOwnedProduct(key) {
+    this.consultationData.customOwnedProducts = this.consultationData.customOwnedProducts.filter(p => p.key !== key);
+    this.renderConsultationSummary();
   },
 
   finishConsultation() {
@@ -772,6 +925,11 @@ const App = {
       lastRenovation: d.lastRenovation
     };
 
+    // Save Zones
+    if (d.zones && d.zones.length > 0) {
+      StorageManager.saveZones(d.zones);
+    }
+
     const initialLogs = StorageManager.getLogs();
     const mowDate = new Date();
     mowDate.setDate(mowDate.getDate() - d.lastMowDays);
@@ -785,10 +943,16 @@ const App = {
     StorageManager.saveProfile(this.profile);
     StorageManager.setOnboarded(true);
 
-    this.showOnboarding(false);
-    this.handleProfileChange();
-    this.switchTab('dashboard');
-    this.showToast("🌱 High-five! Blade has initialized your 6-horizon roadmap.");
+    // If an initial photo was taken during onboarding, analyze it now
+    if (d.initialPhotoData) {
+      this.showOnboarding(false);
+      this.runVisionAnalysis(d.initialPhotoData);
+    } else {
+      this.showOnboarding(false);
+      this.handleProfileChange();
+      this.switchTab('dashboard');
+      this.showToast("🌱 High-five! Blade has initialized your 6-horizon roadmap.");
+    }
   },
 
   renderProfileForm() {
@@ -876,6 +1040,7 @@ const App = {
       fertilisers: getCheckedValues('fertilisers-checklist'),
       herbicides: getCheckedValues('herbicides-checklist').filter(h => !h.includes('PGR') && !h.includes('Wetting Agent')),
       specialTreatments: getCheckedValues('herbicides-checklist').filter(h => h.includes('PGR') || h.includes('Wetting Agent')),
+      customOwnedProducts: this.profile.customOwnedProducts || [],
       history: this.profile.history || {}
     };
 
@@ -894,13 +1059,15 @@ const App = {
       weedLevel: this.currentPlan?.weedPressure || 'Low (<2%)',
       weeds: this.currentPlan?.weedsDetected || ['Clover spot'],
       diseaseOrStress: this.currentPlan?.diseaseOrStress || 'Healthy vigor',
-      profile: this.profile
+      profile: this.profile,
+      zones: StorageManager.getZones()
     });
 
     this.currentPlan.actionPlan = recomputedPlan;
     StorageManager.saveActivePlan(this.currentPlan);
 
     this.renderHeader();
+    this.renderZoneBar();
     this.renderDashboard();
     this.renderTasksList();
     this.renderAnalytics();

@@ -1,10 +1,12 @@
 /**
  * Storage Manager for GreenMaster AI
- * Manages profile, plan states, task completion, onboarding, and quick maintenance logs.
+ * Manages profile, multi-zone segments (Front/Back/Side), plan states, onboarding, and maintenance logs.
  */
 const StorageManager = {
   KEYS: {
     PROFILE: 'gm_lawn_profile',
+    ZONES: 'gm_lawn_zones',
+    ACTIVE_ZONE: 'gm_active_zone_id',
     PLAN: 'gm_active_plan',
     SCAN_HISTORY: 'gm_scan_history',
     COMPLETED_TASKS: 'gm_completed_tasks',
@@ -13,14 +15,39 @@ const StorageManager = {
     LOGS: 'gm_maintenance_logs'
   },
 
+  getDefaultZones() {
+    return [
+      {
+        id: 'front',
+        name: 'Front Yard',
+        grassType: 'Bermuda / Couch',
+        hoc: 12,
+        area: 120,
+        sunExposure: 'Full Sun (6+ hrs)',
+        shadeFactor: 'low',
+        notes: 'High curb-appeal, cylinder cut'
+      },
+      {
+        id: 'back',
+        name: 'Back Yard',
+        grassType: 'Buffalo / St Augustine',
+        hoc: 35,
+        area: 130,
+        sunExposure: 'Partial Shade (3-5 hrs)',
+        shadeFactor: 'medium',
+        notes: 'Family play area, higher cut for shade tolerance'
+      }
+    ];
+  },
+
   getDefaultProfile() {
     return {
-      lawnName: 'My Pristine Turf',
-      grassType: 'Bermuda / Couch',      // Bermuda/Couch, Buffalo/St Augustine, Kikuyu, Zoysia, Kentucky Bluegrass, Tall Fescue, Ryegrass
-      tier: 'full_pro',                 // 'low_maintenance', 'semi_pro', 'full_pro'
-      hoc: 12,                          // Height of Cut in mm
+      lawnName: 'My Turf Masterpiece',
+      grassType: 'Bermuda / Couch',
+      tier: 'full_pro',
+      hoc: 12,
       hocUnit: 'mm',
-      lawnArea: 250,                    // square meters
+      lawnArea: 250,
       areaUnit: 'm²',
       sprinklers: 'In-Ground MP Rotators',
       wateringFreq: '2 times/week',
@@ -28,8 +55,6 @@ const StorageManager = {
       equipment: [
         'Cylinder / Reel Mower',
         'Rotary Mower with Roller',
-        'Dethatcher / Scarifier',
-        'Coring Aerator',
         'Battery Backpack Sprayer',
         'Calibrated Rotary Spreader'
       ],
@@ -45,8 +70,59 @@ const StorageManager = {
       specialTreatments: [
         'Primo Maxx / Plant Growth Regulator (PGR)',
         'Soil Wetting Agent (Hydra-Flo / Tournament-grade)'
-      ]
+      ],
+      customOwnedProducts: []
     };
+  },
+
+  getZones() {
+    try {
+      const data = localStorage.getItem(this.KEYS.ZONES);
+      if (data) return JSON.parse(data);
+    } catch (e) {
+      console.warn('Error reading zones', e);
+    }
+    return this.getDefaultZones();
+  },
+
+  saveZones(zones) {
+    try {
+      localStorage.setItem(this.KEYS.ZONES, JSON.stringify(zones));
+    } catch (e) {
+      console.error('Error saving zones', e);
+    }
+  },
+
+  getActiveZoneId() {
+    return localStorage.getItem(this.KEYS.ACTIVE_ZONE) || 'all';
+  },
+
+  setActiveZoneId(id) {
+    localStorage.setItem(this.KEYS.ACTIVE_ZONE, id);
+  },
+
+  getActiveZone() {
+    const id = this.getActiveZoneId();
+    if (id === 'all') return null;
+    const zones = this.getZones();
+    return zones.find(z => z.id === id) || null;
+  },
+
+  addZone(zone) {
+    const zones = this.getZones();
+    const newZone = {
+      id: 'zone_' + Date.now(),
+      name: zone.name || 'Side Yard',
+      grassType: zone.grassType || 'Bermuda / Couch',
+      hoc: Number(zone.hoc) || 20,
+      area: Number(zone.area) || 50,
+      sunExposure: zone.sunExposure || 'Full Sun (6+ hrs)',
+      shadeFactor: zone.shadeFactor || 'low',
+      notes: zone.notes || ''
+    };
+    zones.push(newZone);
+    this.saveZones(zones);
+    return newZone;
   },
 
   isOnboarded() {
@@ -77,6 +153,22 @@ const StorageManager = {
     }
   },
 
+  addCustomOwnedProduct(productName, category = 'Fertiliser') {
+    const profile = this.getProfile();
+    if (!profile.customOwnedProducts) profile.customOwnedProducts = [];
+    if (!profile.customOwnedProducts.includes(productName)) {
+      profile.customOwnedProducts.push(productName);
+    }
+    if (category === 'Fertiliser' && !profile.fertilisers.includes(productName)) {
+      profile.fertilisers.push(productName);
+    } else if (category === 'Herbicide' && !profile.herbicides.includes(productName)) {
+      profile.herbicides.push(productName);
+    } else if (category === 'Treatment' && !profile.specialTreatments.includes(productName)) {
+      profile.specialTreatments.push(productName);
+    }
+    this.saveProfile(profile);
+  },
+
   getActivePlan() {
     try {
       const data = localStorage.getItem(this.KEYS.PLAN);
@@ -105,11 +197,12 @@ const StorageManager = {
     return [];
   },
 
-  addScanRecord(record) {
+  addScanRecord(record, zoneId = 'all') {
     try {
       const history = this.getScanHistory();
       const slimRecord = {
         id: 'scan_' + Date.now(),
+        zoneId: zoneId,
         date: new Date().toISOString(),
         formattedDate: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
         healthScore: record.healthScore || 85,
@@ -163,7 +256,6 @@ const StorageManager = {
     } catch (e) {
       console.warn('Error reading logs', e);
     }
-    // Default initial mock logs so dashboard looks rich immediately
     const twoDaysAgo = new Date();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
     const fiveDaysAgo = new Date();
