@@ -1,22 +1,90 @@
 /**
  * Agronomic Planner Engine for GreenMaster AI
- * Dynamically computes actionable schedules across 6 time horizons:
- * 1. Next Week (7 Days)
- * 2. Two Weeks (14 Days)
- * 3. One Month (30 Days)
- * 4. One Quarter (3 Months)
- * 5. Half Year (6 Months)
- * 6. One Year (12 Months)
+ * Designed for ultra-clear, bite-sized, visual action cards inspired by top DIY lawn apps
+ * (Yard Mastery, LawnSuite AU, Scotts My Lawn, and r/lawncare community tools).
  *
- * Supports both:
- * - Zone-Specific Plans (tailored per yard section's HOC, sun exposure, attention level, & hotspots)
- * - Aligned Multi-Zone Plans (unifying shared property treatments while badging zone-specific requirements)
+ * Every task includes:
+ * - Short, punchy action title (`task`)
+ * - Instant visual setting/dosage badge (`settingBadge`) — auto-calculated for the zone's area (m²) or HOC (mm)!
+ * - Quick time estimate (`timeEst`)
+ * - Plain-English collapsible "How-To" tip (`tip`)
  */
 const PlannerEngine = {
+  MOW_PATTERNS: [
+    { icon: '↕️', name: 'North–South (Up & Down)', short: '↕️ N–S Stripes' },
+    { icon: '↗️', name: 'Diagonal (NE–SW)', short: '↗️ Diagonal 45°' },
+    { icon: '↔️', name: 'East–West (Across)', short: '↔️ E–W Stripes' },
+    { icon: '↖️', name: 'Cross-Diagonal (NW–SE)', short: '↖️ Cross-Diag' }
+  ],
+
+  getRecommendedMowPattern(mowCount = 0) {
+    return this.MOW_PATTERNS[mowCount % this.MOW_PATTERNS.length];
+  },
+
   /**
-   * Generate a 6-horizon plan for a single yard zone or property profile
+   * Calculate exact product dosage for a given area (m²)
    */
-  generateDynamicPlan({ cvMetrics = {}, weedLevel = 'Low (<2%)', weeds = [], diseaseOrStress = '', hotspots = [], profile = {}, zones = [], targetZone = null }) {
+  calculateDosage(type, areaM2 = 100) {
+    const area = Math.max(10, Number(areaM2) || 100);
+    const waterLitres = Math.max(2, Math.round((area / 100) * 8)); // ~8L per 100m² in knapsack
+    switch (type) {
+      case 'foliar': {
+        const ml = Math.round((area / 100) * 100); // 100mL per 100m²
+        return {
+          badge: `🧪 Mix ${ml}mL in ${waterLitres}L water`,
+          detail: `Measure ${ml}mL of liquid foliar/iron into ${waterLitres}L of water to evenly cover ${area}m².`
+        };
+      }
+      case 'granular': {
+        const kg = ((area / 100) * 2.0).toFixed(1); // 2kg per 100m²
+        return {
+          badge: `⚖️ Weigh ${kg}kg total`,
+          detail: `Weigh out ${kg}kg of slow-release granules for ${area}m². Apply half North–South and half East–West, then water in.`
+        };
+      }
+      case 'wetting': {
+        const ml = Math.round((area / 100) * 150); // 150mL per 100m²
+        return {
+          badge: `💧 Mix ${ml}mL in ${waterLitres}L water`,
+          detail: `Spray ${ml}mL of wetting agent across ${area}m² and immediately water in for 15–20 mins.`
+        };
+      }
+      case 'pre_emergent': {
+        const ml = Math.round((area / 100) * 25); // 25mL per 100m²
+        return {
+          badge: `🛡️ Mix ${ml}mL in ${waterLitres}L water`,
+          detail: `Apply ${ml}mL of Prodiamine/Spartan in ${waterLitres}L water across ${area}m², then water in with 12mm to seal the topsoil.`
+        };
+      }
+      case 'kelp': {
+        const ml = Math.round((area / 100) * 120); // 120mL per 100m²
+        return {
+          badge: `🌱 Mix ${ml}mL in ${waterLitres}L water`,
+          detail: `Mix ${ml}mL of seaweed/humic biostimulant in ${waterLitres}L water for ${area}m².`
+        };
+      }
+      case 'pgr': {
+        const ml = Math.round((area / 100) * 20); // 20mL per 100m²
+        return {
+          badge: `📐 Mix ${ml}mL in ${waterLitres}L water`,
+          detail: `Spray ${ml}mL of PGR on dry leaves across ${area}m² (re-apply every 200 GDD).`
+        };
+      }
+      case 'weed_spot': {
+        return {
+          badge: `🎯 Spot spray weeds only`,
+          detail: `Mix 15mL selective broadleaf herbicide per 2L water and dab/spray only visible weeds on a calm morning.`
+        };
+      }
+      default:
+        return { badge: `📐 ${area}m² area`, detail: '' };
+    }
+  },
+
+  /**
+   * Generate a punchy, visual 6-horizon plan for a single yard zone or property
+   */
+  generateDynamicPlan({ cvMetrics = {}, weedLevel = 'Low (<2%)', weeds = [], diseaseOrStress = '', hotspots = [], profile = {}, zones = [], targetZone = null, mowPatternIdx = 0 }) {
     const activeZone = targetZone || (zones.length === 1 ? zones[0] : null);
     const zoneId = activeZone ? activeZone.id : 'all';
     const zoneName = activeZone ? activeZone.name : 'All Yard Zones';
@@ -24,7 +92,7 @@ const PlannerEngine = {
     const tier = profile.tier || 'semi_pro';
     const grass = activeZone ? (activeZone.grassType || profile.grassType || 'Bermuda / Couch') : (profile.grassType || 'Bermuda / Couch');
     const hoc = Number(activeZone ? activeZone.hoc : profile.hoc) || 15;
-    const area = Number(activeZone ? activeZone.area : profile.lawnArea) || 100;
+    const area = Number(activeZone ? activeZone.area : profile.lawnArea) || 90;
     const sunExposure = activeZone ? (activeZone.sunExposure || 'Full Sun (6+ hrs)') : 'Full Sun (6+ hrs)';
     const attentionLevel = activeZone ? (activeZone.attentionLevel || 'standard') : 'standard';
 
@@ -33,9 +101,7 @@ const PlannerEngine = {
     const isLowKey = attentionLevel === 'low';
     const isShaded = sunExposure.toLowerCase().includes('shade') || sunExposure.toLowerCase().includes('partial') || sunExposure.toLowerCase().includes('heavy');
 
-    const zoneSpec = activeZone
-      ? `${grass} • ${hoc}mm • ${sunExposure.split(' (')[0]}`
-      : `${grass} • ${hoc}mm Target`;
+    const zoneSpec = `${grass.split(' /')[0]} • ${hoc}mm • ${area}m²`;
 
     const history = profile.history || {};
     const equipment = profile.equipment || [];
@@ -45,12 +111,12 @@ const PlannerEngine = {
 
     const hasReel = equipment.some(e => e.toLowerCase().includes('reel') || e.toLowerCase().includes('cylinder'));
     const hasSprayer = equipment.some(e => e.toLowerCase().includes('sprayer'));
-    const hasDethatcher = equipment.some(e => e.toLowerCase().includes('dethatch') || e.toLowerCase().includes('scarifi'));
-    const hasAerator = equipment.some(e => e.toLowerCase().includes('aera'));
     const hasPgr = profile.specialTreatments?.some(t => t.toLowerCase().includes('pgr') || t.toLowerCase().includes('primo'));
     const hasPreEmergent = herbicides.some(h => h.toLowerCase().includes('prodiamine') || h.toLowerCase().includes('barricade') || h.toLowerCase().includes('pre-emergent') || h.toLowerCase().includes('spartan')) || customOwned.some(c => c.toLowerCase().includes('pre-emergent') || c.toLowerCase().includes('prodiamine') || c.toLowerCase().includes('barricade'));
     const hasWettingAgent = profile.specialTreatments?.some(t => t.toLowerCase().includes('wetting') || t.toLowerCase().includes('surfactant')) || customOwned.some(c => c.toLowerCase().includes('wetting') || c.toLowerCase().includes('hydra'));
-    const hasFertiliser = fertilisers.length > 0 || customOwned.length > 0;
+
+    const pattern1 = this.getRecommendedMowPattern(mowPatternIdx);
+    const pattern2 = this.getRecommendedMowPattern(mowPatternIdx + 1);
 
     const prefixId = activeZone ? `${activeZone.id}_` : '';
     const tagTask = (t) => ({
@@ -59,345 +125,285 @@ const PlannerEngine = {
       zoneId,
       zoneName,
       zoneSpec,
+      area,
+      hoc,
       attentionLevel
     });
 
-    // 1. ONE WEEK (Immediate 7-Day Actions)
+    // 1. ONE WEEK (This Week's Gameplan)
     const oneWeek = [];
 
-    // Inject pinpointed photo hotspot tasks first if present
+    // Pinpointed photo hotspots
     if (Array.isArray(hotspots) && hotspots.length > 0) {
       hotspots.forEach((h, idx) => {
-        if (h.type === 'drought_patch' || (h.label && h.label.toLowerCase().includes('dry'))) {
-          oneWeek.push(tagTask({
-            id: `w1_hotspot_drought_${idx}`,
-            task: `${zoneName}: Targeted Wetting Agent Soak (${h.label.split(':')[0]})`,
-            urgency: 'Critical',
-            category: 'Watering',
-            tip: `${h.recommendation || 'Drench this dry patch with soil surfactant and 15mm water to restore rootzone moisture permeability.'}`
-          }));
-        } else if (h.type === 'weed_cluster' || (h.label && h.label.toLowerCase().includes('weed'))) {
-          oneWeek.push(tagTask({
-            id: `w1_hotspot_weed_${idx}`,
-            task: `${zoneName}: Spot Spray Weed Cluster (${h.label.split(':')[0]})`,
-            urgency: 'High',
-            category: 'Weed Control',
-            tip: `${h.recommendation || 'Use selective broadleaf herbicide directly on this cluster rather than blanketing the entire section.'}`
-          }));
-        } else {
-          oneWeek.push(tagTask({
-            id: `w1_hotspot_custom_${idx}`,
-            task: `${zoneName}: ${h.label}`,
-            urgency: isRecovery ? 'Critical' : 'High',
-            category: 'Soil',
-            tip: h.recommendation || 'Targeted zone attention required based on your section scan.'
-          }));
-        }
+        const isWeed = h.type === 'weed_cluster' || (h.label && h.label.toLowerCase().includes('weed'));
+        const isDry = h.type === 'drought_patch' || (h.label && h.label.toLowerCase().includes('dry'));
+        const dose = this.calculateDosage(isWeed ? 'weed_spot' : 'wetting', Math.max(15, Math.round(area * 0.3)));
+        oneWeek.push(tagTask({
+          id: `w1_hotspot_${idx}`,
+          task: isDry ? `Soak Dry Patch (${h.label.split(':')[0]})` : isWeed ? `Spot-Spray Weeds (${h.label.split(':')[0]})` : h.label,
+          settingBadge: dose.badge,
+          timeEst: '10 min',
+          calcType: isWeed ? 'weed_spot' : 'wetting',
+          urgency: 'Critical',
+          category: isWeed ? 'Weed Control' : 'Watering',
+          tip: h.recommendation || dose.detail
+        }));
       });
     }
 
-    // Recovery mode urgent drench if zone is in recovery
+    // Recovery mode urgent drench
     if (isRecovery && (!hotspots || hotspots.length === 0)) {
+      const dose = this.calculateDosage('wetting', area);
       oneWeek.push(tagTask({
         id: 'w1_recovery_soak',
-        task: `${zoneName}: Recovery Wetting Agent & Seaweed Root Soak (${area}m²)`,
+        task: `Recovery Wetting Agent Soak`,
+        settingBadge: dose.badge,
+        timeEst: '15 min',
+        calcType: 'wetting',
         urgency: 'Critical',
         category: 'Soil',
-        tip: `${zoneName} is marked for Recovery / TLC. Saturate the rootzone with soil wetting agent and liquid seaweed to stimulate stolon repair before lowering cut height.`
+        tip: `${dose.detail} Helps thin or traffic-worn patches absorb water and bounce back fast.`
       }));
     }
 
-    // Pre-emergent urgent check
-    if (history.preEmergentStatus === 'none' || history.preEmergentStatus === 'over_6m') {
-      const prodName = customOwned.find(c => c.toLowerCase().includes('barricade') || c.toLowerCase().includes('prodiamine') || c.toLowerCase().includes('spartan')) || 'Prodiamine / Spartan';
-      oneWeek.push(tagTask({
-        id: 'w1_urgent_pre_emergent',
-        task: hasPreEmergent
-          ? `Apply Pre-Emergent Barrier (${prodName}) to ${zoneName}`
-          : `🛒 Order & Apply Pre-Emergent Barrier (${zoneName})`,
-        urgency: 'Critical',
-        category: 'Protection',
-        tip: hasPreEmergent
-          ? `Apply ${prodName} across ${zoneName} (${area}m²) and water in with 12mm to seal the topsoil against germinating weed seeds.`
-          : 'Crucial: Get Prodiamine / Barricade (Available at lawntips.com) to lock out weed seeds before germination.'
-      }));
-    }
-
-    // Nutrition check
-    if (!hasFertiliser) {
-      oneWeek.push(tagTask({
-        id: 'w1_shop_fert',
-        task: `🛒 Procure Essential Lawn Nutrition Kit for ${zoneName}`,
-        urgency: 'Critical',
-        category: 'Fertiliser',
-        tip: 'Visit lawntips.com to get a balanced slow-release granular or foliar starter pack (e.g. Lawn Tips Growth / Foliar Duo).'
-      }));
-    }
-
-    // Mowing plan tailored to this specific zone's HOC, sun exposure, and attention level
+    // Mowing task (Short & Visual!)
     const lastMowDays = Number(history.lastMowDays) || 3;
+    const mowMins = Math.max(10, Math.round(area / 6));
     if (lastMowDays >= 10) {
+      const stepHoc = Math.round(hoc * 1.3);
       oneWeek.push(tagTask({
         id: 'w1_step_down_mow',
-        task: `${zoneName}: Gradual Step-Down Mow toward ${hoc}mm (1/3rd Rule)`,
+        task: `Step-Down Mow (Start High)`,
+        settingBadge: `✂️ Deck: ${stepHoc}mm → ${hoc}mm • ${pattern1.short}`,
+        timeEst: `${mowMins} min`,
         urgency: 'High',
         category: 'Mowing',
-        tip: `Since the last mow was ${lastMowDays} days ago, cut slightly higher first, wait 3 days, then step down to ${hoc}mm so you don't scalp ${grass}.`
+        tip: `Grass hasn't been cut in ${lastMowDays} days. Cut at ${stepHoc}mm today, then drop to ${hoc}mm in 3 days so you don't scalp it (1/3rd rule).`
       }));
     } else if (isShaded) {
       const shadeHoc = Math.max(hoc, 30);
       oneWeek.push(tagTask({
         id: 'w1_shade_mow',
-        task: `${zoneName}: Shade-Protected Mow at ${shadeHoc}mm (${grass})`,
+        task: `Shade Cut (Keep Leaves Longer)`,
+        settingBadge: `✂️ Deck: ${shadeHoc}mm • ${pattern1.short}`,
+        timeEst: `${mowMins} min`,
         urgency: 'High',
         category: 'Mowing',
-        tip: `${zoneName} receives ${sunExposure}. Keep leaf canopy at ${shadeHoc}mm so blades have enough surface area for photosynthesis and crowd out moss/weeds.`
+        tip: `Shaded grass needs longer blades (${shadeHoc}mm) to catch sunlight and stay thick.`
       }));
-    } else if (isShowpiece || (tier === 'full_pro' && !isLowKey)) {
+    } else {
       oneWeek.push(tagTask({
         id: 'w1_mow_1',
-        task: hasReel
-          ? `${zoneName}: Precision Cylinder Mow at ${hoc}mm (${grass})`
-          : `${zoneName}: Precision Mow at ${hoc}mm with sharp blade`,
-        urgency: 'Critical',
+        task: hasReel && isShowpiece ? `Reel Mow (${pattern1.short})` : `Mow Lawn (${pattern1.short})`,
+        settingBadge: `✂️ Deck: ${hoc}mm • ${pattern1.short}`,
+        timeEst: `${mowMins} min`,
+        urgency: isShowpiece ? 'Critical' : 'High',
         category: 'Mowing',
-        tip: `Mow ${zoneName} early morning once dew dries. Empty catcher to maintain uniform ${hoc}mm showpiece density.`
+        tip: `Mow at ${hoc}mm in a ${pattern1.name} direction once morning dew dries. Never take off more than 1/3rd of the leaf.`
       }));
-      oneWeek.push(tagTask({
-        id: 'w1_mow_2',
-        task: hasReel
-          ? `${zoneName}: Double/Cross-Cut Pass at ${hoc}mm (90° Angle)`
-          : `${zoneName}: Mid-Week Grooming Mow at ${hoc}mm`,
-        urgency: 'High',
-        category: 'Mowing',
-        tip: `Alternating mowing direction in ${zoneName} prevents grain and forces tight lateral stolon tillering.`
-      }));
-      if (hasPgr && isShowpiece) {
-        oneWeek.push(tagTask({
-          id: 'w1_pgr',
-          task: `${zoneName}: Primo Maxx (PGR) Application & GDD Check`,
-          urgency: 'Medium',
-          category: 'Protection',
-          tip: `Apply PGR on ${zoneName} (${area}m²) at 200 Growing Degree Days to lock in your ${hoc}mm cut height and double root density.`
-        }));
-      }
-    } else if (tier === 'semi_pro' && !isLowKey) {
-      oneWeek.push(tagTask({
-        id: 'w1_mow',
-        task: `${zoneName}: Mow at ${hoc}mm with Striping Roller (${grass})`,
-        urgency: 'High',
-        category: 'Mowing',
-        tip: `Keep ${zoneName} at a consistent ${hoc}mm. Never remove more than 1/3rd of the leaf blade in a single cut.`
-      }));
-    } else {
-      oneWeek.push(tagTask({
-        id: 'w1_mow_low',
-        task: `${zoneName}: Maintenance Rotary Mow at ${hoc}mm`,
-        urgency: 'Medium',
-        category: 'Mowing',
-        tip: `Clean cut at ${hoc}mm for ${zoneName}. Ensure mower blades are sharp to avoid frayed tips.`
-      }));
-    }
 
-    // Shaded zone extra tip when generating for multiple zones without targetZone
-    if (!activeZone && zones.length > 1) {
-      const shadedZone = zones.find(z => z.sunExposure && z.sunExposure.toLowerCase().includes('shade'));
-      if (shadedZone) {
+      if (isShowpiece || (tier === 'full_pro' && !isLowKey)) {
         oneWeek.push(tagTask({
-          id: 'w1_multi_shade_mow',
-          task: `${shadedZone.name}: Raise Mower Deck to ${shadedZone.hoc}mm`,
+          id: 'w1_mow_2',
+          task: `Mid-Week Cross-Cut (${pattern2.short})`,
+          settingBadge: `✂️ Deck: ${hoc}mm • ${pattern2.short}`,
+          timeEst: `${mowMins} min`,
           urgency: 'Medium',
           category: 'Mowing',
-          tip: `In ${shadedZone.name} (${shadedZone.sunExposure}), keep cut height higher at ${shadedZone.hoc}mm so the grass captures maximum sunlight.`
+          tip: `Rotate direction to ${pattern2.name} mid-week to prevent grass grain and thicken the carpet.`
         }));
       }
     }
 
-    // Irrigation check for week 1
-    if ((cvMetrics && cvMetrics.brownRatio > 0.08) || isRecovery) {
+    // Irrigation task
+    const waterMins = isShaded ? 15 : 25;
+    oneWeek.push(tagTask({
+      id: 'w1_water',
+      task: isShaded ? `Light Dawn Watering (Shade)` : `Deep Morning Soak`,
+      settingBadge: `💧 ${waterMins} mins @ Sunrise (${isShaded ? '9mm' : '12mm'})`,
+      timeEst: `${waterMins} min`,
+      urgency: isRecovery ? 'High' : 'Medium',
+      category: 'Watering',
+      tip: isShaded
+        ? `Shaded areas evaporate slowly. Run sprinklers for ${waterMins} mins at dawn only, and skip if soil is still damp.`
+        : `Water deeply (${waterMins} mins between 5–7 AM, ${profile.wateringFreq || '2x/week'}) to train roots to grow deep.`
+    }));
+
+    // Pre-emergent urgent check
+    if (history.preEmergentStatus === 'none' || history.preEmergentStatus === 'over_6m') {
+      const preDose = this.calculateDosage('pre_emergent', area);
       oneWeek.push(tagTask({
-        id: 'w1_deep_soak',
-        task: `${zoneName}: Deep Dawn Soak (15mm) & Moisture Check`,
+        id: 'w1_urgent_pre_emergent',
+        task: hasPreEmergent ? `Apply Weed Barrier (Pre-Emergent)` : `🛒 Get & Apply Pre-Emergent`,
+        settingBadge: preDose.badge,
+        timeEst: '15 min',
+        calcType: 'pre_emergent',
         urgency: 'Critical',
-        category: 'Watering',
-        tip: `Run irrigation on ${zoneName} at sunrise to rehydrate dry spots and drive deep root growth.`
-      }));
-    } else if (isShaded) {
-      oneWeek.push(tagTask({
-        id: 'w1_water_shade',
-        task: `${zoneName}: Reduced Shade Watering (Dawn Only, Avoid Overwatering)`,
-        urgency: 'Low',
-        category: 'Watering',
-        tip: `${zoneName} has lower evaporation due to ${sunExposure}. Water only at dawn and reduce run-time by 25% to prevent fungal disease.`
-      }));
-    } else {
-      oneWeek.push(tagTask({
-        id: 'w1_water',
-        task: `${zoneName}: Deep Irrigation Cycle (${profile.wateringFreq || '2 times/week'})`,
-        urgency: 'Medium',
-        category: 'Watering',
-        tip: `Deep dawn soaks on ${zoneName} encourage ${grass} roots to push deep into the subsoil.`
+        category: 'Protection',
+        tip: `${preDose.detail} Blocks winter/summer weed seeds before they ever sprout (Available at lawntips.com).`
       }));
     }
 
-    // Weeds check for week 1
+    // Weed spot check
     if (weedLevel.includes('Moderate') || weedLevel.includes('High')) {
+      const weedDose = this.calculateDosage('weed_spot', area);
       oneWeek.push(tagTask({
         id: 'w1_weeds',
-        task: `${zoneName}: Spot Spray Detected Weeds (${(weeds && weeds.length ? weeds.slice(0, 2).join(', ') : 'Broadleaf / Clover')})`,
+        task: `Spot-Spray Visible Weeds`,
+        settingBadge: weedDose.badge,
+        timeEst: '10 min',
+        calcType: 'weed_spot',
         urgency: 'High',
         category: 'Weed Control',
-        tip: `Confirm herbicide is safe for ${grass} in ${zoneName} (especially if Buffalo/St Augustine). Spray on a calm morning.`
+        tip: `${weedDose.detail} Ensure herbicide is safe for ${grass}.`
       }));
     }
 
-    // 2. TWO WEEKS (Short-term 14-Day Horizon)
+    // 2. TWO WEEKS (Next 14 Days)
     const twoWeeks = [];
-    const lastFertDays = Number(history.lastFertDays) || 30;
-    const customFeed = customOwned.find(c => c.toLowerCase().includes('foliar') || c.toLowerCase().includes('fertiliser') || c.toLowerCase().includes('feed')) || (hasSprayer ? 'Liquid Foliar Iron & Nitrogen' : 'Slow-Release Granular Feed');
-
-    if (lastFertDays < 14 && !isRecovery) {
-      twoWeeks.push(tagTask({
-        id: 'w2_feed_resting',
-        task: `${zoneName}: Soil Hydration & Microbial Soak (Hold Heavy Nitrogen)`,
-        urgency: 'Low',
-        category: 'Soil',
-        tip: `Your last fertiliser on ${zoneName} was ${lastFertDays} days ago and is still releasing. Allow roots to utilize current nutrients.`
-      }));
-    } else {
-      if (isShowpiece || tier === 'full_pro') {
-        twoWeeks.push(tagTask({
-          id: 'w2_foliar',
-          task: `${zoneName}: Liquid Foliar Spoon-Feed (${customFeed} • ${area}m²)`,
-          urgency: 'High',
-          category: 'Fertiliser',
-          tip: `Spoon-feeding ${zoneName} delivers deep emerald chlorophyll pop on ${grass} without soft vertical surge.`
-        }));
-        twoWeeks.push(tagTask({
-          id: 'w2_groom',
-          task: `${zoneName}: Light Grooming / Verti-Cut Pass`,
-          urgency: 'Medium',
-          category: 'Renovation',
-          tip: `Lifts flat stolons in ${zoneName} prior to your ${hoc}mm cut for a tight upright canopy.`
-        }));
-      } else {
-        twoWeeks.push(tagTask({
-          id: 'w2_feed',
-          task: `${zoneName}: Apply ${customFeed} (${area}m²)`,
-          urgency: isRecovery ? 'High' : 'Medium',
-          category: 'Fertiliser',
-          tip: `Feed ${zoneName} evenly to fuel lateral recovery and density. Water in thoroughly within 24 hours.`
-        }));
-      }
-    }
+    const useLiquid = hasSprayer || isShowpiece || tier === 'full_pro';
+    const feedDose = this.calculateDosage(useLiquid ? 'foliar' : 'granular', area);
+    twoWeeks.push(tagTask({
+      id: 'w2_feed',
+      task: useLiquid ? `Liquid Iron & Nitrogen Feed` : `Slow-Release Lawn Feed`,
+      settingBadge: feedDose.badge,
+      timeEst: '15 min',
+      calcType: useLiquid ? 'foliar' : 'granular',
+      urgency: 'High',
+      category: 'Fertiliser',
+      tip: `${feedDose.detail} Boosts deep emerald green colour without soft surge growth.`
+    }));
 
     twoWeeks.push(tagTask({
       id: 'w2_edge',
-      task: `${zoneName}: Crisp Perimeter Edging & Trimming`,
+      task: `Crisp Edge Trim`,
+      settingBadge: `📐 Vertical 90° Edges`,
+      timeEst: '10 min',
       urgency: 'Low',
       category: 'Detailing',
-      tip: `Clean vertical edges around ${zoneName} stop runners creeping into garden beds and frame the section.`
+      tip: `Whipper-snip or blade-edge along paths and garden beds to frame ${zoneName}.`
     }));
 
-    // 3. ONE MONTH (30-Day Milestone)
+    if (hasPgr && isShowpiece) {
+      const pgrDose = this.calculateDosage('pgr', area);
+      twoWeeks.push(tagTask({
+        id: 'w2_pgr',
+        task: `Apply PGR (Growth Regulator)`,
+        settingBadge: pgrDose.badge,
+        timeEst: '15 min',
+        calcType: 'pgr',
+        urgency: 'Medium',
+        category: 'Protection',
+        tip: pgrDose.detail
+      }));
+    }
+
+    // 3. ONE MONTH (Monthly Care)
     const oneMonth = [];
-    const wettingName = customOwned.find(c => c.toLowerCase().includes('wetting') || c.toLowerCase().includes('hydra')) || 'Tournament Soil Wetting Agent';
+    const wetDose = this.calculateDosage('wetting', area);
     oneMonth.push(tagTask({
       id: 'm1_wetting',
-      task: hasWettingAgent
-        ? `${zoneName}: Apply ${wettingName} (${area}m²)`
-        : `🛒 ${zoneName}: Apply Wetting Agent (Hydra-Flo / Tournament)`,
-      urgency: isRecovery ? 'Critical' : 'High',
+      task: hasWettingAgent ? `Monthly Wetting Agent Soak` : `🛒 Apply Soil Wetting Agent`,
+      settingBadge: wetDose.badge,
+      timeEst: '15 min',
+      calcType: 'wetting',
+      urgency: 'High',
       category: 'Soil',
-      tip: `Eliminates hydrophobic dry patches in ${zoneName} so water penetrates evenly across all ${area}m².`
+      tip: `${wetDose.detail} Stops dry patches and saves 30% water (Available at lawntips.com).`
     }));
 
+    const kelpDose = this.calculateDosage('kelp', area);
     oneMonth.push(tagTask({
       id: 'm1_biostimulant',
-      task: `${zoneName}: Humic Acid & Kelp Biostimulant Drench`,
+      task: `Seaweed & Humic Root Tonic`,
+      settingBadge: kelpDose.badge,
+      timeEst: '15 min',
+      calcType: 'kelp',
       urgency: 'Medium',
       category: 'Soil',
-      tip: `Boosts root mass and stress tolerance for ${grass} in ${zoneName} (${sunExposure}).`
+      tip: `${kelpDose.detail} Feeds beneficial soil microbes and thickens roots.`
     }));
 
     oneMonth.push(tagTask({
       id: 'm1_blade_check',
-      task: hasReel
-        ? `Cylinder Mower Backlapping & ${hoc}mm Bedknife Check`
-        : `Rotary Blade Sharpening & ${hoc}mm Deck Height Check`,
+      task: hasReel ? `Check Reel & Bedknife Cut` : `Sharpen Mower Blades`,
+      settingBadge: `🔧 Paper-Cut Sharpness Test`,
+      timeEst: '20 min',
       urgency: 'Medium',
       category: 'Equipment',
-      tip: `Razor-sharp blades prevent bruised yellowing leaf tips on ${zoneName}.`
+      tip: `Dull blades rip grass tips, leaving a brown fuzzy haze across the lawn.`
     }));
 
-    // 4. ONE QUARTER (3 Months / Seasonal Transition)
+    // 4. ONE QUARTER (Seasonal / 3 Months)
     const oneQuarter = [];
+    const qPreDose = this.calculateDosage('pre_emergent', area);
     oneQuarter.push(tagTask({
       id: 'q1_pre_emergent',
-      task: `${zoneName}: Seasonal Pre-Emergent Barrier Booster (${area}m²)`,
+      task: `Seasonal Pre-Emergent Booster`,
+      settingBadge: qPreDose.badge,
+      timeEst: '15 min',
+      calcType: 'pre_emergent',
       urgency: 'Critical',
       category: 'Protection',
-      tip: `Maintains weed seed barrier across ${zoneName} for the next 12 weeks.`
+      tip: `${qPreDose.detail} Apply when soil temp crosses 13°C (55°F) to block seasonal weeds.`
     }));
 
-    if (isShowpiece || tier === 'full_pro') {
-      oneQuarter.push(tagTask({
-        id: 'q1_sand_dress',
-        task: `${zoneName}: Light Washed Sand Topdress & Level Lute (${area}m²)`,
-        urgency: 'High',
-        category: 'Levelling',
-        tip: `Smooths out minor surface ripples in ${zoneName} so your ${hoc}mm cut never scalps high spots.`
-      }));
-    } else {
-      oneQuarter.push(tagTask({
-        id: 'q1_seasonal_feed',
-        task: `${zoneName}: Seasonal Slow-Release NPK + Potassium Boost`,
-        urgency: 'High',
-        category: 'Fertiliser',
-        tip: `Strengthens ${grass} cell walls in ${zoneName} for heat, shade, and wear tolerance.`
-      }));
-    }
-
-    // 5. HALF YEAR (6 Months / Mid-Year Renovation & Prep)
-    const halfYear = [];
-    halfYear.push(tagTask({
-      id: 'h1_core_aeration',
-      task: hasAerator
-        ? `${zoneName}: Core Aeration Pass (${area}m²)`
-        : `${zoneName}: Aerate / Spike Compacted Traffic Areas (${area}m²)`,
-      urgency: isRecovery ? 'Critical' : 'High',
-      category: 'Renovation',
-      tip: `Relieves soil compaction in ${zoneName} and channels oxygen and nutrients straight to the roots.`
-    }));
-
-    if (!isShaded) {
-      halfYear.push(tagTask({
-        id: 'h1_dethatch',
-        task: hasDethatcher
-          ? `${zoneName}: Scarify / Dethatch Organic Layer`
-          : `${zoneName}: Thatch Audit & Light Grooming Rake`,
-        urgency: 'Medium',
-        category: 'Renovation',
-        tip: `Keeps thatch under 10mm in ${zoneName} so water and fertiliser reach the soil profile.`
-      }));
-    }
-
-    // 6. ONE YEAR (12 Months / Annual Master Reset & Budget)
-    const oneYear = [];
-    oneYear.push(tagTask({
-      id: 'y1_annual_renovation',
-      task: `${zoneName}: Annual Spring Renovation (${grass} Reset to ${hoc}mm)`,
-      urgency: 'Critical',
-      category: 'Renovation',
-      tip: `Annual reset for ${zoneName}: low scalp, aerate, topdress, and fertilise for fresh emerald stolon growth.`
-    }));
-    oneYear.push(tagTask({
-      id: 'y1_lab_soil_test',
-      task: `${zoneName}: Soil pH & Nutrient Check`,
+    const qGranDose = this.calculateDosage('granular', area);
+    oneQuarter.push(tagTask({
+      id: 'q1_seasonal_feed',
+      task: `Seasonal Granular NPK Boost`,
+      settingBadge: qGranDose.badge,
+      timeEst: '15 min',
+      calcType: 'granular',
       urgency: 'High',
-      category: 'Soil',
-      tip: `Target pH 6.2 - 6.8 in ${zoneName} to unlock maximum nutrient uptake.`
+      category: 'Fertiliser',
+      tip: qGranDose.detail
     }));
+
+    // 5. HALF YEAR (6-Month Tune-Up)
+    const halfYear = [
+      tagTask({
+        id: 'h1_core_aeration',
+        task: `Aerate Soil (Relieve Compaction)`,
+        settingBadge: `⚙️ Core or Spike ${area}m²`,
+        timeEst: '45 min',
+        urgency: 'High',
+        category: 'Renovation',
+        tip: `Punch holes across high-traffic areas so air, water, and nutrients reach the roots.`
+      }),
+      tagTask({
+        id: 'h1_sprinkler_audit',
+        task: `Catch-Cup Sprinkler Check`,
+        settingBadge: `💧 Place 4 Cups • Run 15m`,
+        timeEst: '20 min',
+        urgency: 'Medium',
+        category: 'Watering',
+        tip: `Place tuna cans or catch-cups on ${zoneName} to verify even sprinkler coverage.`
+      })
+    ];
+
+    // 6. ONE YEAR (Annual Spring Renovation)
+    const oneYear = [
+      tagTask({
+        id: 'y1_annual_renovation',
+        task: `Spring Lawn Renovation & Topdress`,
+        settingBadge: `⛳ Scalp, Dethatch & Sand Level`,
+        timeEst: 'Half Day',
+        urgency: 'Critical',
+        category: 'Renovation',
+        tip: `Once a year in mid-spring: scalp low, remove dead thatch, aerate, and level with washed sand.`
+      }),
+      tagTask({
+        id: 'y1_lab_soil_test',
+        task: `Check Soil pH (Target 6.2–6.8)`,
+        settingBadge: `🌱 Test Kit or Lab Sample`,
+        timeEst: '15 min',
+        urgency: 'High',
+        category: 'Soil',
+        tip: `Keeping soil pH around 6.5 unlocks 100% of the fertiliser you apply.`
+      })
+    ];
 
     return {
       oneWeek,
@@ -410,13 +416,11 @@ const PlannerEngine = {
   },
 
   /**
-   * Builds an "Aligned Together" property-wide plan across all yard zones,
-   * combining shared property treatments into unified tasks while keeping
-   * distinct zone-specific mowing heights, shade care, and hotspot treatments badged!
+   * Builds a clean, punchy "Aligned Together" plan across all yard zones
    */
-  generateAlignedPropertyPlan({ profile = {}, zones = [], zoneResultsMap = {} }) {
+  generateAlignedPropertyPlan({ profile = {}, zones = [], zoneResultsMap = {}, mowPatternIdx = 0 }) {
     if (!zones || zones.length === 0) {
-      return this.generateDynamicPlan({ profile, zones: [] });
+      return this.generateDynamicPlan({ profile, zones: [], mowPatternIdx });
     }
     if (zones.length === 1) {
       const z = zones[0];
@@ -435,162 +439,182 @@ const PlannerEngine = {
         hotspots: zRes.hotspots || [],
         profile,
         zones: [z],
-        targetZone: z
+        targetZone: z,
+        mowPatternIdx
       });
     }
 
     const totalArea = zones.reduce((sum, z) => sum + (Number(z.area) || 50), 0);
-    const zoneNamesSummary = zones.map(z => `${z.name} (${z.hoc}mm)`).join(', ');
     const areaBreakdown = zones.map(z => `${z.name}: ${z.area || 50}m²`).join(' • ');
-
-    const equipment = profile.equipment || [];
-    const herbicides = profile.herbicides || [];
-    const customOwned = profile.customOwnedProducts || [];
-    const hasReel = equipment.some(e => e.toLowerCase().includes('reel') || e.toLowerCase().includes('cylinder'));
-    const hasSprayer = equipment.some(e => e.toLowerCase().includes('sprayer'));
-    const hasPreEmergent = herbicides.some(h => h.toLowerCase().includes('prodiamine') || h.toLowerCase().includes('barricade') || h.toLowerCase().includes('pre-emergent') || h.toLowerCase().includes('spartan')) || customOwned.some(c => c.toLowerCase().includes('pre-emergent') || c.toLowerCase().includes('prodiamine') || c.toLowerCase().includes('barricade'));
-    const hasWettingAgent = profile.specialTreatments?.some(t => t.toLowerCase().includes('wetting') || t.toLowerCase().includes('surfactant')) || customOwned.some(c => c.toLowerCase().includes('wetting') || c.toLowerCase().includes('hydra'));
+    const pattern1 = this.getRecommendedMowPattern(mowPatternIdx);
 
     const alignedTag = (t) => ({
       ...t,
       zoneId: 'all',
-      zoneName: `All ${zones.length} Yard Zones (Aligned)`,
-      zoneSpec: `${totalArea}m² Total • ${zoneNamesSummary}`,
+      zoneName: `All ${zones.length} Zones`,
+      zoneSpec: `${totalArea}m² Total`,
+      area: totalArea,
       attentionLevel: 'aligned'
     });
 
     const oneWeek = [];
 
-    // 1. Include any specific photo hotspots or recovery alerts per zone first
+    // 1. Specific photo hotspots per zone
     zones.forEach(z => {
       const zRes = zoneResultsMap[z.id];
       const zHotspots = zRes?.hotspots || [];
       zHotspots.forEach((h, idx) => {
+        const isWeed = h.type === 'weed_cluster' || (h.label && h.label.toLowerCase().includes('weed'));
+        const dose = this.calculateDosage(isWeed ? 'weed_spot' : 'wetting', Math.max(15, Math.round((z.area || 50) * 0.3)));
         oneWeek.push({
           id: `${z.id}_w1_hotspot_${idx}`,
           zoneId: z.id,
           zoneName: z.name,
-          zoneSpec: `${z.grassType} • ${z.hoc}mm • ${z.sunExposure.split(' (')[0]}`,
+          zoneSpec: `${z.hoc}mm • ${z.area || 50}m²`,
+          area: z.area || 50,
           attentionLevel: z.attentionLevel,
-          task: `${z.name}: ${h.label}`,
+          task: `${h.label}`,
+          settingBadge: dose.badge,
+          timeEst: '10 min',
+          calcType: isWeed ? 'weed_spot' : 'wetting',
           urgency: 'Critical',
-          category: h.type === 'weed_cluster' ? 'Weed Control' : 'Watering',
-          tip: h.recommendation || `Pinpointed in ${z.name} scan.`
+          category: isWeed ? 'Weed Control' : 'Watering',
+          tip: h.recommendation || dose.detail
         });
       });
     });
 
-    // 2. Mowing tasks: Group zones by identical HOC or list per-zone HOC requirements so user can mow with clear deck settings
+    // 2. Mowing per zone (with clear deck height badge!)
     zones.forEach(z => {
-      const isShade = (z.sunExposure || '').toLowerCase().includes('shade');
-      const isShow = z.attentionLevel === 'showpiece';
-      const isRec = z.attentionLevel === 'recovery';
+      const zArea = Number(z.area) || 50;
+      const mowMins = Math.max(8, Math.round(zArea / 6));
       oneWeek.push({
         id: `${z.id}_aligned_w1_mow`,
         zoneId: z.id,
         zoneName: z.name,
-        zoneSpec: `${z.grassType} • ${z.hoc}mm • ${(z.sunExposure || 'Full Sun').split(' (')[0]}`,
+        zoneSpec: `${(z.grassType || 'Turf').split(' /')[0]} • ${zArea}m²`,
+        area: zArea,
+        hoc: z.hoc,
         attentionLevel: z.attentionLevel,
-        task: isShow && hasReel
-          ? `${z.name}: Precision Cylinder Mow at ${z.hoc}mm`
-          : isShade
-          ? `${z.name}: Shade Canopy Cut at ${z.hoc}mm`
-          : isRec
-          ? `${z.name}: Gentle Recovery Trim at ${z.hoc}mm`
-          : `${z.name}: Mow at ${z.hoc}mm (${z.grassType})`,
-        urgency: isShow ? 'Critical' : 'High',
+        task: `Mow ${z.name}`,
+        settingBadge: `✂️ Deck: ${z.hoc}mm • ${pattern1.short}`,
+        timeEst: `${mowMins} min`,
+        urgency: z.attentionLevel === 'showpiece' ? 'Critical' : 'High',
         category: 'Mowing',
-        tip: `Set mower deck to ${z.hoc}mm for ${z.name} (${z.area || 50}m², ${z.sunExposure}). Never remove more than 1/3rd of leaf height.`
+        tip: `Set mower deck to ${z.hoc}mm for ${z.name} (${z.sunExposure}). Direction: ${pattern1.name}.`
       });
     });
 
-    // 3. Aligned Irrigation across zones
+    // 3. Aligned Watering
     const shadedZones = zones.filter(z => (z.sunExposure || '').toLowerCase().includes('shade'));
     oneWeek.push(alignedTag({
       id: 'aligned_w1_water',
-      task: `Aligned Dawn Irrigation Cycle (${profile.wateringFreq || '2 times/week'})`,
+      task: `Morning Sprinkler Soak (All Zones)`,
+      settingBadge: `💧 20–25 mins @ Sunrise (12mm)`,
+      timeEst: '25 min',
       urgency: 'Medium',
       category: 'Watering',
-      tip: `Run morning soak across all sections (${areaBreakdown}). ${shadedZones.length > 0 ? `Note: Reduce watering runtime by 25% in ${shadedZones.map(s => s.name).join(', ')} due to shade.` : 'Water between 4:30 AM - 7:00 AM.'}`
+      tip: `Run dawn soak across all zones (${areaBreakdown}). ${shadedZones.length > 0 ? `Reduce runtime by 25% in shaded areas (${shadedZones.map(s => s.name).join(', ')}).` : ''}`
     }));
 
-    // 4. Aligned Pre-emergent if needed
+    // 4. Aligned Pre-Emergent if needed
     const history = profile.history || {};
     if (history.preEmergentStatus === 'none' || history.preEmergentStatus === 'over_6m') {
-      const prodName = customOwned.find(c => c.toLowerCase().includes('barricade') || c.toLowerCase().includes('prodiamine') || c.toLowerCase().includes('spartan')) || 'Prodiamine / Spartan';
+      const preDose = this.calculateDosage('pre_emergent', totalArea);
       oneWeek.push(alignedTag({
         id: 'aligned_w1_pre_emergent',
-        task: hasPreEmergent
-          ? `Aligned Pre-Emergent Barrier (${prodName}) Across All Zones`
-          : '🛒 Order & Apply Pre-Emergent Barrier Across All Zones',
+        task: `Apply Pre-Emergent Weed Barrier`,
+        settingBadge: preDose.badge,
+        timeEst: '20 min',
+        calcType: 'pre_emergent',
         urgency: 'Critical',
         category: 'Protection',
-        tip: `Mix and spray all ${zones.length} sections (${totalArea}m² total: ${areaBreakdown}) in one session and water in with 12mm.`
+        tip: `${preDose.detail} Covers all ${zones.length} zones (${areaBreakdown}) in one tank mix.`
       }));
     }
 
-    // TWO WEEKS (Aligned Feeding & Detailing)
-    const customFeed = customOwned.find(c => c.toLowerCase().includes('foliar') || c.toLowerCase().includes('fertiliser') || c.toLowerCase().includes('feed')) || (hasSprayer ? 'Liquid Foliar Iron & Nitrogen' : 'Slow-Release Granular Feed');
+    // TWO WEEKS
+    const foliarDose = this.calculateDosage('foliar', totalArea);
     const twoWeeks = [
       alignedTag({
         id: 'aligned_w2_feed',
-        task: `Aligned Property Feed: ${customFeed} (${totalArea}m² Total)`,
+        task: `Feed All Zones Together (Iron + N)`,
+        settingBadge: foliarDose.badge,
+        timeEst: '20 min',
+        calcType: 'foliar',
         urgency: 'High',
         category: 'Fertiliser',
-        tip: `Synchronize feeding across all ${zones.length} sections on the same day (${areaBreakdown}) for uniform colour and growth.`
+        tip: `${foliarDose.detail} Breakdown: ${areaBreakdown}.`
       }),
       alignedTag({
         id: 'aligned_w2_edge',
-        task: `Full Property Perimeter Edging & Whipper Snipping`,
-        urgency: 'Medium',
+        task: `Trim All Lawn Edges`,
+        settingBadge: `📐 Crisp 90° Borders`,
+        timeEst: '15 min',
+        urgency: 'Low',
         category: 'Detailing',
-        tip: `Edge all ${zones.length} sections (${zones.map(z => z.name).join(', ')}) in a single pass for crisp curb appeal.`
+        tip: `Edge paths, driveways, and garden beds across all ${zones.length} sections in one pass.`
       })
     ];
 
-    // ONE MONTH (Aligned Soil Conditioning & Blade Care)
-    const wettingName = customOwned.find(c => c.toLowerCase().includes('wetting') || c.toLowerCase().includes('hydra')) || 'Tournament Soil Wetting Agent';
+    // ONE MONTH
+    const wetDose = this.calculateDosage('wetting', totalArea);
+    const kelpDose = this.calculateDosage('kelp', totalArea);
     const oneMonth = [
       alignedTag({
         id: 'aligned_m1_wetting',
-        task: hasWettingAgent
-          ? `Aligned Wetting Agent Application (${wettingName} • ${totalArea}m²)`
-          : `🛒 Aligned Wetting Agent Treatment Across All Sections (${totalArea}m²)`,
+        task: `Soil Wetting Agent (All Zones)`,
+        settingBadge: wetDose.badge,
+        timeEst: '20 min',
+        calcType: 'wetting',
         urgency: 'High',
         category: 'Soil',
-        tip: `Blanket all ${zones.length} sections (${areaBreakdown}) to prevent dry patches and improve irrigation efficiency by 30%.`
+        tip: `${wetDose.detail} Breakdown: ${areaBreakdown}.`
       }),
       alignedTag({
         id: 'aligned_m1_kelp',
-        task: `Aligned Seaweed & Humic Biostimulant Tank-Mix (${totalArea}m²)`,
+        task: `Seaweed & Humic Root Tonic`,
+        settingBadge: kelpDose.badge,
+        timeEst: '20 min',
+        calcType: 'kelp',
         urgency: 'Medium',
         category: 'Soil',
-        tip: `Spray all yard sections together to stimulate deep root mass and microbial health.`
+        tip: kelpDose.detail
       }),
       alignedTag({
         id: 'aligned_m1_blades',
-        task: hasReel ? 'Mower Reel Backlapping & Bedknife Inspection' : 'Rotary Mower Blade Sharpening & Balance',
+        task: `Sharpen Mower Blades`,
+        settingBadge: `🔧 Clean Cut Check`,
+        timeEst: '20 min',
         urgency: 'Medium',
         category: 'Equipment',
-        tip: `Keeps cuts surgical across every yard section (${zones.map(z => `${z.name} @ ${z.hoc}mm`).join(', ')}).`
+        tip: `Sharp blades prevent frayed yellowing tips across all yard areas.`
       })
     ];
 
     // ONE QUARTER
+    const qPre = this.calculateDosage('pre_emergent', totalArea);
+    const qGran = this.calculateDosage('granular', totalArea);
     const oneQuarter = [
       alignedTag({
         id: 'aligned_q1_pre',
-        task: `Quarterly Pre-Emergent Booster Across All ${zones.length} Zones (${totalArea}m²)`,
+        task: `Quarterly Pre-Emergent Barrier`,
+        settingBadge: qPre.badge,
+        timeEst: '20 min',
+        calcType: 'pre_emergent',
         urgency: 'Critical',
         category: 'Protection',
-        tip: `Re-seal the topsoil weed barrier across ${areaBreakdown}.`
+        tip: qPre.detail
       }),
       alignedTag({
         id: 'aligned_q1_feed',
-        task: `Seasonal Granular NPK + Potassium Application (${totalArea}m²)`,
+        task: `Seasonal Granular Fertiliser`,
+        settingBadge: qGran.badge,
+        timeEst: '20 min',
+        calcType: 'granular',
         urgency: 'High',
         category: 'Fertiliser',
-        tip: `Broadcast across all sections to fortify turf against seasonal heat or cold stress.`
+        tip: `${qGran.detail} Breakdown: ${areaBreakdown}.`
       })
     ];
 
@@ -598,17 +622,21 @@ const PlannerEngine = {
     const halfYear = [
       alignedTag({
         id: 'aligned_h1_aerate',
-        task: `Property-Wide Core Aeration & Decompaction (${totalArea}m²)`,
+        task: `Core Aerate All Yard Zones`,
+        settingBadge: `⚙️ ${totalArea}m² Total Area`,
+        timeEst: '1 hr',
         urgency: 'High',
         category: 'Renovation',
-        tip: `Aerate all ${zones.length} sections (${areaBreakdown}) on the same weekend to maximize equipment use.`
+        tip: `Relieve soil compaction across ${areaBreakdown} on the same weekend.`
       }),
       alignedTag({
         id: 'aligned_h1_sprinkler',
-        task: `Multi-Zone Catch-Cup Sprinkler Uniformity Audit`,
+        task: `Check Sprinkler Coverage`,
+        settingBadge: `💧 Catch-Cup Test`,
+        timeEst: '20 min',
         urgency: 'Medium',
         category: 'Watering',
-        tip: `Check precipitation rates across ${zones.map(z => z.name).join(', ')} and adjust shaded zones down by 25%.`
+        tip: `Verify even watering across front, verge, and back yard sections.`
       })
     ];
 
@@ -616,17 +644,21 @@ const PlannerEngine = {
     const oneYear = [
       alignedTag({
         id: 'aligned_y1_reno',
-        task: `Annual Spring Renovation & Topdressing (${totalArea}m² Total)`,
+        task: `Annual Spring Renovation`,
+        settingBadge: `⛳ Scalp, Aerate & Level (${totalArea}m²)`,
+        timeEst: '1 Day',
         urgency: 'Critical',
         category: 'Renovation',
-        tip: `Full property spring reset across ${zones.map(z => `${z.name} (${z.grassType})`).join(', ')}.`
+        tip: `Full spring reset across all ${zones.length} sections.`
       }),
       alignedTag({
         id: 'aligned_y1_soil',
-        task: `Annual Soil pH & Nutrient Audit Per Yard Section`,
+        task: `Soil pH Test (Target 6.5)`,
+        settingBadge: `🌱 Front & Back Samples`,
+        timeEst: '15 min',
         urgency: 'High',
         category: 'Soil',
-        tip: `Compare soil pH between front, verge, and back yard sections to dial in your annual nutrition budget.`
+        tip: `Test soil pH to keep nutrients unlocked all year.`
       })
     ];
 

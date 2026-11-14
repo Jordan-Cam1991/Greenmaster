@@ -12,7 +12,7 @@ const WeatherEngine = {
     const lon = coords?.lon || this.defaultCoords.lon;
     
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=3`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7`;
       
       const res = await fetch(url);
       if (!res.ok) throw new Error('Weather fetch failed');
@@ -56,13 +56,37 @@ const WeatherEngine = {
     const totalUpcomingRain = todayPrecip + tomorrowPrecip;
     const shouldSkipSprinklers = totalUpcomingRain >= 5 || maxProbToday >= 65 || maxProbTomorrow >= 65;
 
-    let rainVerdict = 'Optimal conditions: No heavy rain expected. Proceed with planned irrigation.';
+    let rainVerdict = '☀️ Dry & clear — Great window to mow or spray.';
     if (shouldSkipSprinklers) {
-      rainVerdict = `🌧️ Rain Alert: ${Math.round(totalUpcomingRain)}mm rain forecast (${Math.max(maxProbToday, maxProbTomorrow)}% chance). TURN OFF sprinklers to save water & prevent leaf fungal disease!`;
+      rainVerdict = `🌧️ ${Math.round(totalUpcomingRain)}mm rain forecast (${Math.max(maxProbToday, maxProbTomorrow)}%) — Turn OFF sprinklers!`;
     }
 
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const now = new Date();
+    const sevenDays = Array.from({ length: 7 }, (_, idx) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() + idx);
+      const dayLabel = idx === 0 ? 'Today' : idx === 1 ? 'Tmrw' : dayNames[d.getDay()];
+      const rain = daily.precipitation_sum?.[idx] ?? 0;
+      const prob = daily.precipitation_probability_max?.[idx] ?? 10;
+      const maxTemp = Math.round(daily.temperature_2m_max?.[idx] ?? 25);
+      const minTemp = Math.round(daily.temperature_2m_min?.[idx] ?? 16);
+      return {
+        day: idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : dayLabel,
+        shortDay: dayLabel,
+        maxTemp,
+        minTemp,
+        rain,
+        prob
+      };
+    });
+
+    const currentAirTemp = Math.round(current.temperature_2m || 24);
+    const estSoilTemp = Math.max(10, Math.round(currentAirTemp * 0.84 + 1));
+
     return {
-      currentTemp: Math.round(current.temperature_2m || 24),
+      currentTemp: currentAirTemp,
+      soilTemp: estSoilTemp,
       humidity: Math.round(current.relative_humidity_2m || 60),
       todayRain: todayPrecip,
       tomorrowRain: tomorrowPrecip,
@@ -70,47 +94,37 @@ const WeatherEngine = {
       maxProb: Math.max(maxProbToday, maxProbTomorrow),
       shouldSkipSprinklers,
       rainVerdict,
-      forecastDays: [
-        {
-          day: 'Today',
-          maxTemp: Math.round(daily.temperature_2m_max?.[0] || 26),
-          minTemp: Math.round(daily.temperature_2m_min?.[0] || 18),
-          rain: daily.precipitation_sum?.[0] || 0,
-          prob: daily.precipitation_probability_max?.[0] || 10
-        },
-        {
-          day: 'Tomorrow',
-          maxTemp: Math.round(daily.temperature_2m_max?.[1] || 27),
-          minTemp: Math.round(daily.temperature_2m_min?.[1] || 19),
-          rain: daily.precipitation_sum?.[1] || 0,
-          prob: daily.precipitation_probability_max?.[1] || 10
-        },
-        {
-          day: 'Day 3',
-          maxTemp: Math.round(daily.temperature_2m_max?.[2] || 25),
-          minTemp: Math.round(daily.temperature_2m_min?.[2] || 17),
-          rain: daily.precipitation_sum?.[2] || 0,
-          prob: daily.precipitation_probability_max?.[2] || 10
-        }
-      ]
+      forecastDays: sevenDays
     };
   },
 
   getFallbackWeather() {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const now = new Date();
+    const sevenDays = Array.from({ length: 7 }, (_, idx) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() + idx);
+      const dayLabel = idx === 0 ? 'Today' : idx === 1 ? 'Tmrw' : dayNames[d.getDay()];
+      return {
+        day: idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : dayLabel,
+        shortDay: dayLabel,
+        maxTemp: 25 + (idx % 3),
+        minTemp: 17 + (idx % 2),
+        rain: idx === 3 ? 6 : 0,
+        prob: idx === 3 ? 70 : 15
+      };
+    });
     return {
       currentTemp: 24,
+      soilTemp: 21,
       humidity: 58,
       todayRain: 0,
       tomorrowRain: 0,
       totalUpcomingRain: 0,
       maxProb: 15,
       shouldSkipSprinklers: false,
-      rainVerdict: 'Clear weather. Proceed with deep dawn irrigation as scheduled.',
-      forecastDays: [
-        { day: 'Today', maxTemp: 26, minTemp: 18, rain: 0, prob: 10 },
-        { day: 'Tomorrow', maxTemp: 27, minTemp: 19, rain: 0, prob: 15 },
-        { day: 'Day 3', maxTemp: 25, minTemp: 17, rain: 0, prob: 20 }
-      ]
+      rainVerdict: '☀️ Dry & clear — Great window to mow or spray.',
+      forecastDays: sevenDays
     };
   }
 };

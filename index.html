@@ -92,11 +92,36 @@
       <!-- Multi-Zone / Segment Selector Pills -->
       <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex items-center justify-between px-1 mb-1.5">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lawn Sections & Attention Levels</span>
-          <span class="text-[10px] text-emerald-700 font-medium">Tap to filter</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Yard Zones</span>
+          <span class="text-[10px] text-emerald-700 font-medium">Tap to switch area</span>
         </div>
         <div id="dash-zone-selector" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
           <!-- Rendered by App.renderZoneBar() -->
+        </div>
+      </div>
+
+      <!-- Lawn Vitals Strip (Soil Temp • Mowing Direction • Growth Window) -->
+      <div class="grid grid-cols-3 gap-2">
+        <div onclick="App.switchTab('weather')" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer btn-press">
+          <span class="text-base">🌡️</span>
+          <div class="min-w-0">
+            <span class="text-[9px] font-bold uppercase text-slate-400 block">Soil Temp</span>
+            <span id="dash-vital-soil-temp" class="text-xs font-extrabold text-slate-800 truncate block">19°C • Active</span>
+          </div>
+        </div>
+        <div onclick="App.rotateMowPattern()" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer btn-press" title="Tap to rotate mowing direction">
+          <span id="dash-vital-pattern-icon" class="text-base">↕️</span>
+          <div class="min-w-0">
+            <span class="text-[9px] font-bold uppercase text-slate-400 block">Next Cut Dir</span>
+            <span id="dash-vital-pattern-text" class="text-xs font-extrabold text-emerald-800 truncate block">N–S Stripes</span>
+          </div>
+        </div>
+        <div onclick="App.openDosageCalculator()" class="bg-emerald-50 p-2.5 rounded-2xl border border-emerald-200 shadow-2xs flex items-center gap-2 cursor-pointer btn-press">
+          <span class="text-base">🧮</span>
+          <div class="min-w-0">
+            <span class="text-[9px] font-bold uppercase text-emerald-700 block">Toolbox</span>
+            <span class="text-xs font-extrabold text-emerald-900 truncate block">Dose Calc</span>
+          </div>
         </div>
       </div>
       
@@ -152,7 +177,7 @@
         </div>
       </div>
 
-      <!-- Quick Action: Next Upcoming Task Card -->
+      <!-- Quick Action: Next Upcoming Task Card (Visual & Action-First) -->
       <div class="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-5 rounded-3xl shadow-lg relative overflow-hidden">
         <div class="absolute -right-4 -bottom-4 opacity-10 pointer-events-none">
           <i data-lucide="check-circle-2" class="w-32 h-32"></i>
@@ -161,24 +186,34 @@
           <div class="flex items-center justify-between">
             <span class="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              Next Priority Action
+              Today's #1 Move
             </span>
             <span id="dash-next-action-cat" class="px-2 py-0.5 rounded-full text-[10px] bg-white/15 text-emerald-200 border border-white/10 font-semibold">
               Mowing • High
             </span>
           </div>
-          <h3 id="dash-next-action-text" class="text-base font-bold mt-2 leading-snug">Cylinder mow at 12mm (Pattern 1)</h3>
-          <p id="dash-next-action-sub" class="text-xs text-slate-300 mt-1 leading-relaxed">Mow early in the morning once dew dries. Promotes carpet-like density.</p>
+          <h3 id="dash-next-action-text" class="text-base font-extrabold mt-2 leading-snug">Reel Mow (↕️ N–S Stripes)</h3>
           
-          <div class="mt-4 pt-3 border-t border-white/15 flex items-center justify-between">
-            <button onclick="App.switchTab('planner')" class="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1">
-              <span>View Full Schedule</span>
-              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          <!-- Visual Spec Chips (Zone • Deck/Dose • Time) -->
+          <div id="dash-next-action-chips" class="flex items-center gap-1.5 flex-wrap mt-2">
+            <!-- Populated by App.renderDashboard() -->
+          </div>
+          <p id="dash-next-action-sub" class="text-[11px] text-slate-300 mt-1.5 leading-snug"></p>
+          
+          <div class="mt-4 pt-3 border-t border-white/15 flex items-center justify-between gap-2">
+            <button onclick="App.completeHeroNextTask()" class="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all btn-press flex items-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Mark Done</span>
             </button>
-            <button onclick="App.switchTab('vision')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all btn-press flex items-center gap-1">
-              <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-              <span>Multi-Photo Scan</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <button onclick="App.openDosageCalculator()" class="px-2.5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/15 transition-all btn-press" title="Dosage Calculator">
+                🧮 Dose
+              </button>
+              <button onclick="App.switchTab('planner')" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white font-bold text-xs rounded-xl border border-white/15 flex items-center gap-1 transition-all btn-press">
+                <span>Full Plan</span>
+                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -273,7 +308,20 @@
     </main>
 
     <!-- TAB 2: PLANNER VIEW -->
-    <main id="view-planner" class="tab-view hidden p-4 space-y-4">
+    <main id="view-planner" class="tab-view hidden p-4 space-y-3.5">
+      <!-- 7-Day Visual Weather & Lawn Window Strip -->
+      <div class="bg-white p-3 rounded-3xl border border-slate-200 shadow-sm space-y-2">
+        <div class="flex items-center justify-between px-0.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">7-Day Lawn Weather Window</span>
+          <button type="button" onclick="App.openDosageCalculator()" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 btn-press">
+            <span>🧮 Mix & Dose Calculator</span>
+          </button>
+        </div>
+        <div id="planner-week-strip" class="grid grid-cols-7 gap-1 text-center">
+          <!-- Dynamically populated by App.renderPlannerWeekStrip() -->
+        </div>
+      </div>
+
       <!-- Yard Zone Filter & Aligned vs Segmented Schedule Toggle -->
       <div class="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
         <div class="flex items-center justify-between gap-2">
@@ -1280,6 +1328,80 @@
             Save Lawn Section
           </button>
         </form>
+      </div>
+    </div>
+
+    <!-- INSTANT DOSAGE & SPREADER CALCULATOR MODAL -->
+    <div id="dosage-calc-modal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center px-4 app-modal-safe hidden">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-200 max-h-[85vh] overflow-y-auto no-scrollbar">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              🧮
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm">Mix & Spreader Calculator</h3>
+              <span class="text-[11px] text-slate-400">Exact mL, Litres & kg for your yard area</span>
+            </div>
+          </div>
+          <button onclick="App.closeDosageCalculator()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+            ✕
+          </button>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Step 1: Pick Yard Zone -->
+          <div>
+            <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">1. Select Yard Zone (Auto-Fills Area)</label>
+            <select id="calc-zone-select" onchange="App.handleCalcZoneChange(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <!-- Area & Rate Row -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Lawn Area (m²)</label>
+              <input type="number" id="calc-area-input" min="5" max="5000" value="90" oninput="App.updateDosageCalculation()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-extrabold text-slate-900 text-center">
+            </div>
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Strength / Rate</label>
+              <select id="calc-strength-select" onchange="App.updateDosageCalculation()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800">
+                <option value="0.5">Light / Spoon-Feed (50%)</option>
+                <option value="1" selected>Standard Rate (100%)</option>
+                <option value="1.35">Heavy / Boost (135%)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Step 2: Pick Product Type -->
+          <div>
+            <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">2. What Are You Applying?</label>
+            <select id="calc-product-select" onchange="App.updateDosageCalculation()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="foliar">🧪 Liquid Foliar & Iron (Green-Up)</option>
+              <option value="wetting">💧 Soil Wetting Agent (Hydra-Flo)</option>
+              <option value="pre_emergent">🛡️ Pre-Emergent Weed Barrier (Prodiamine)</option>
+              <option value="granular">🌾 Slow-Release Granular Fertiliser</option>
+              <option value="kelp">🌱 Seaweed & Humic Root Tonic</option>
+              <option value="pgr">✂️ Primo Maxx / PGR Growth Regulator</option>
+              <option value="weed_spot">🎯 Selective Broadleaf Weed Spray</option>
+            </select>
+          </div>
+
+          <!-- Visual Result Box -->
+          <div id="calc-result-card" class="p-4 rounded-2xl bg-gradient-to-br from-emerald-900 to-teal-900 text-white space-y-2 shadow-lg">
+            <!-- Dynamically populated by App.updateDosageCalculation() -->
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" onclick="App.closeDosageCalculator()" class="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
+            Close
+          </button>
+          <button type="button" onclick="App.logFromCalculator()" class="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/25 transition-all btn-press">
+            ✓ Log Application
+          </button>
+        </div>
       </div>
     </div>
 
