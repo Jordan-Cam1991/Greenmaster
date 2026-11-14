@@ -1,6 +1,6 @@
 /**
  * Storage Manager for GreenMaster AI
- * Manages profile, plan states, task completion, and privacy-respecting scan records.
+ * Manages profile, plan states, task completion, onboarding, and quick maintenance logs.
  */
 const StorageManager = {
   KEYS: {
@@ -8,7 +8,9 @@ const StorageManager = {
     PLAN: 'gm_active_plan',
     SCAN_HISTORY: 'gm_scan_history',
     COMPLETED_TASKS: 'gm_completed_tasks',
-    SETTINGS: 'gm_user_settings'
+    SETTINGS: 'gm_user_settings',
+    ONBOARDED: 'gm_user_onboarded',
+    LOGS: 'gm_maintenance_logs'
   },
 
   getDefaultProfile() {
@@ -16,12 +18,12 @@ const StorageManager = {
       lawnName: 'My Pristine Turf',
       grassType: 'Bermuda / Couch',      // Bermuda/Couch, Buffalo/St Augustine, Kikuyu, Zoysia, Kentucky Bluegrass, Tall Fescue, Ryegrass
       tier: 'full_pro',                 // 'low_maintenance', 'semi_pro', 'full_pro'
-      hoc: 12,                          // Height of Cut in mm (12mm for pro reel, 25mm for semi, 45mm for rotary)
+      hoc: 12,                          // Height of Cut in mm
       hocUnit: 'mm',
-      lawnArea: 250,                    // square meters or sq ft
+      lawnArea: 250,                    // square meters
       areaUnit: 'm²',
-      sprinklers: 'In-Ground MP Rotators', // In-Ground Popups, In-Ground MP Rotators, Smart Rachio/B-hyve, Oscillating Hose Sprinkler, Manual Hand Watering
-      wateringFreq: '2 times/week',     // '1 time/week', '2 times/week', '3 times/week', 'Daily light cycle'
+      sprinklers: 'In-Ground MP Rotators',
+      wateringFreq: '2 times/week',
       wateringAmount: '12mm / 0.5 inch per session',
       equipment: [
         'Cylinder / Reel Mower',
@@ -29,25 +31,30 @@ const StorageManager = {
         'Dethatcher / Scarifier',
         'Coring Aerator',
         'Battery Backpack Sprayer',
-        'Calibrated Rotary Spreader',
-        'Lawn Levelawn / Sand Drag'
+        'Calibrated Rotary Spreader'
       ],
       fertilisers: [
         'Slow Release Granular (20-2-10)',
         'Liquid Foliar Nitrogen & Iron',
-        'Potassium Silicate (Blade stiffener)',
         'Seaweed & Humic Acid Biostimulant'
       ],
       herbicides: [
         'Prodiamine / Barricade (Pre-emergent)',
-        'Bow & Arrow / Dicamba (Selective Broadleaf)',
-        'Monument / Sulfonylurea (Nutgrass & Sedges)'
+        'Bow & Arrow / Dicamba (Selective Broadleaf)'
       ],
       specialTreatments: [
         'Primo Maxx / Plant Growth Regulator (PGR)',
         'Soil Wetting Agent (Hydra-Flo / Tournament-grade)'
       ]
     };
+  },
+
+  isOnboarded() {
+    return localStorage.getItem(this.KEYS.ONBOARDED) === 'true';
+  },
+
+  setOnboarded(status = true) {
+    localStorage.setItem(this.KEYS.ONBOARDED, status ? 'true' : 'false');
   },
 
   getProfile() {
@@ -101,7 +108,6 @@ const StorageManager = {
   addScanRecord(record) {
     try {
       const history = this.getScanHistory();
-      // Keep only key metrics & diagnoses - do NOT store raw full-size photo blobs to preserve storage
       const slimRecord = {
         id: 'scan_' + Date.now(),
         date: new Date().toISOString(),
@@ -116,7 +122,6 @@ const StorageManager = {
       };
       
       history.unshift(slimRecord);
-      // Keep max 20 scans
       if (history.length > 20) history.pop();
       localStorage.setItem(this.KEYS.SCAN_HISTORY, JSON.stringify(history));
       return slimRecord;
@@ -151,6 +156,52 @@ const StorageManager = {
     }
   },
 
+  getLogs() {
+    try {
+      const data = localStorage.getItem(this.KEYS.LOGS);
+      if (data) return JSON.parse(data);
+    } catch (e) {
+      console.warn('Error reading logs', e);
+    }
+    // Default initial mock logs so dashboard looks rich immediately
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+    return {
+      lastMow: twoDaysAgo.toISOString(),
+      lastWater: fiveDaysAgo.toISOString(),
+      lastFeed: tenDaysAgo.toISOString(),
+      fertiliserLevel: '85%',
+      preEmergentActiveDays: 38
+    };
+  },
+
+  logMow() {
+    const logs = this.getLogs();
+    logs.lastMow = new Date().toISOString();
+    localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
+    return logs;
+  },
+
+  logWater() {
+    const logs = this.getLogs();
+    logs.lastWater = new Date().toISOString();
+    localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
+    return logs;
+  },
+
+  logFeed(product = 'Liquid Foliar N-P-K') {
+    const logs = this.getLogs();
+    logs.lastFeed = new Date().toISOString();
+    logs.lastFeedProduct = product;
+    localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
+    return logs;
+  },
+
   getSettings() {
     try {
       const data = localStorage.getItem(this.KEYS.SETTINGS);
@@ -161,6 +212,7 @@ const StorageManager = {
     return {
       apiKey: '',
       remindersEnabled: true,
+      rainAlertsEnabled: true,
       reminderTime: '08:00',
       reminderFrequency: 'Weekly on Saturday',
       hapticFeedback: true

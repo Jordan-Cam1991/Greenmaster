@@ -2,13 +2,14 @@
  * Main Application Controller for GreenMaster AI
  */
 const App = {
-  activeTab: 'planner',
+  activeTab: 'dashboard',
   activeHorizon: 'oneWeek',
   currentPlan: null,
   profile: null,
+  weather: null,
   isScanning: false,
 
-  init() {
+  async init() {
     this.profile = StorageManager.getProfile();
     this.currentPlan = StorageManager.getActivePlan();
 
@@ -45,6 +46,23 @@ const App = {
     this.bindEvents();
     this.renderAll();
     this.registerServiceWorker();
+
+    // Check onboarding
+    if (!StorageManager.isOnboarded()) {
+      this.showOnboarding(true);
+    }
+
+    // Load live weather asynchronously
+    this.fetchWeather();
+  },
+
+  async fetchWeather() {
+    try {
+      this.weather = await WeatherEngine.getCurrentWeather();
+      this.renderDashboardWeather();
+    } catch (e) {
+      console.warn('Weather load issue:', e);
+    }
   },
 
   bindEvents() {
@@ -123,7 +141,7 @@ const App = {
       notifBtn.addEventListener('click', async () => {
         const granted = await NotificationManager.requestPermission();
         if (granted) {
-          NotificationManager.showNotification('GreenMaster AI Active', 'Push reminders configured for your lawn maintenance cycles.');
+          NotificationManager.showNotification('GreenMaster AI Active', 'Push reminders & rain alerts configured.');
           this.showToast('Push Notifications Enabled!');
           this.renderNotificationStatus();
         } else {
@@ -153,8 +171,10 @@ const App = {
 
     document.querySelectorAll('[data-tab]').forEach(btn => {
       const active = btn.getAttribute('data-tab') === tab;
-      btn.classList.toggle('text-emerald-600', active);
-      btn.classList.toggle('text-slate-400', !active);
+      if (tab !== 'vision') {
+        btn.classList.toggle('text-emerald-600', active);
+        btn.classList.toggle('text-slate-400', !active);
+      }
     });
 
     if (window.lucide) {
@@ -179,6 +199,7 @@ const App = {
 
   renderAll() {
     this.renderHeader();
+    this.renderDashboard();
     this.renderTasksList();
     this.renderProfileForm();
     this.renderNotificationStatus();
@@ -208,8 +229,117 @@ const App = {
       };
       const info = tierMap[this.profile.tier] || tierMap['semi_pro'];
       tierBadge.innerText = info.label;
-      tierBadge.className = `px-2.5 py-0.5 rounded-full text-xs font-semibold ${info.cls}`;
+      tierBadge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold ${info.cls}`;
     }
+  },
+
+  renderDashboard() {
+    const logs = StorageManager.getLogs();
+
+    // 1. Last Mow relative text
+    const lastMowEl = document.getElementById('dash-last-mow-text');
+    if (lastMowEl && logs.lastMow) {
+      lastMowEl.innerText = this.formatRelativeTime(logs.lastMow);
+    }
+
+    // 2. Next Action from Planner
+    const nextActionEl = document.getElementById('dash-next-action-text');
+    const nextActionSubEl = document.getElementById('dash-next-action-sub');
+    const nextActionCatEl = document.getElementById('dash-next-action-cat');
+    const weekTasks = this.currentPlan?.actionPlan?.oneWeek || [];
+    const completedTasks = StorageManager.getCompletedTasks();
+    const nextPendingTask = weekTasks.find(t => !completedTasks[`oneWeek_${t.id || 0}`]) || weekTasks[0];
+
+    if (nextPendingTask) {
+      if (nextActionEl) nextActionEl.innerText = nextPendingTask.task;
+      if (nextActionSubEl) nextActionSubEl.innerText = nextPendingTask.tip ? `Tip: ${nextPendingTask.tip.slice(0, 70)}...` : 'Next on your weekly schedule';
+      if (nextActionCatEl) nextActionCatEl.innerText = `${nextPendingTask.category} • ${nextPendingTask.urgency} Urgency`;
+    }
+
+    // 3. Fertiliser & Nutrition Level
+    const fertStatusEl = document.getElementById('dash-fert-status');
+    const fertSubEl = document.getElementById('dash-fert-sub');
+    if (fertStatusEl && logs.lastFeed) {
+      fertStatusEl.innerText = `Fed ${this.formatRelativeTime(logs.lastFeed)}`;
+      if (fertSubEl) fertSubEl.innerText = `Pre-emergent barrier: ${logs.preEmergentActiveDays || 38} days active`;
+    }
+
+    // 4. Watering & Sprinkler Status
+    const waterStatusEl = document.getElementById('dash-water-status');
+    if (waterStatusEl && logs.lastWater) {
+      waterStatusEl.innerText = `Watered ${this.formatRelativeTime(logs.lastWater)}`;
+    }
+
+    // 5. Height of Cut Target
+    const hocTextEl = document.getElementById('dash-hoc-text');
+    if (hocTextEl) {
+      hocTextEl.innerText = `${this.profile.hoc}mm (${(this.profile.hoc / 25.4).toFixed(2)}")`;
+    }
+
+    this.renderDashboardWeather();
+  },
+
+  renderDashboardWeather() {
+    if (!this.weather) return;
+
+    const banner = document.getElementById('dash-rain-alert-banner');
+    const verdictEl = document.getElementById('dash-rain-verdict');
+    const tempEl = document.getElementById('dash-weather-temp');
+    const rainProbEl = document.getElementById('dash-weather-prob');
+
+    if (tempEl) tempEl.innerText = `${this.weather.currentTemp}°C`;
+    if (rainProbEl) rainProbEl.innerText = `${this.weather.maxProb}% Rain Risk`;
+
+    if (banner && verdictEl) {
+      verdictEl.innerText = this.weather.rainVerdict;
+      if (this.weather.shouldSkipSprinklers) {
+        banner.className = 'p-4 rounded-3xl bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-lg shadow-sky-600/20 border border-sky-400/30 flex items-start gap-3';
+      } else {
+        banner.className = 'p-3 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 flex items-center gap-2.5';
+      }
+    }
+
+    // Full weather view details
+    const weatherSummaryEl = document.getElementById('weather-summary-text');
+    if (weatherSummaryEl) {
+      weatherSummaryEl.innerText = this.weather.rainVerdict;
+    }
+  },
+
+  formatRelativeTime(isoString) {
+    if (!isoString) return 'Not yet logged';
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  },
+
+  logQuickMow() {
+    StorageManager.logMow();
+    NotificationManager.playTone();
+    this.renderDashboard();
+    this.showToast('✂️ Mowing logged! Recorded to lawn timeline.');
+  },
+
+  logQuickWater() {
+    StorageManager.logWater();
+    NotificationManager.playTone();
+    this.renderDashboard();
+    this.showToast('💧 Irrigation cycle logged!');
+  },
+
+  logQuickFeed() {
+    StorageManager.logFeed('Foliar Spoon-feed');
+    NotificationManager.playTone();
+    this.renderDashboard();
+    this.showToast('🧪 Fertiliser application logged!');
   },
 
   renderTasksList() {
@@ -311,6 +441,7 @@ const App = {
       NotificationManager.playTone();
     }
     this.renderTasksList();
+    this.renderDashboard();
   },
 
   handlePhotoSelected(e) {
@@ -384,7 +515,7 @@ const App = {
       statusText.innerText = scanning ? 'AI Agronomist analyzing chlorophyll, density & weed patterns...' : 'Ready for photo';
     }
     if (scanBtn) {
-      scanBtn.innerText = scanning ? 'Analyzing...' : 'Scan New Photo';
+      scanBtn.innerText = scanning ? 'Analyzing...' : 'Snap or Upload Lawn Photo';
     }
   },
 
@@ -410,8 +541,33 @@ const App = {
   closeModal() {
     const modal = document.getElementById('scan-result-modal');
     if (modal) modal.classList.add('hidden');
-    // Switch to planner view to see the freshly generated plan
     this.switchTab('planner');
+  },
+
+  showOnboarding(show = true) {
+    const modal = document.getElementById('onboarding-modal');
+    if (modal) {
+      modal.classList.toggle('hidden', !show);
+    }
+  },
+
+  finishOnboarding() {
+    // Read selections from onboarding
+    const tier = document.querySelector('input[name="ob-tier"]:checked')?.value || 'semi_pro';
+    const grass = document.getElementById('ob-grass-type')?.value || 'Bermuda / Couch';
+    const hoc = Number(document.getElementById('ob-hoc')?.value || 15);
+
+    this.profile.tier = tier;
+    this.profile.grassType = grass;
+    this.profile.hoc = hoc;
+
+    StorageManager.saveProfile(this.profile);
+    StorageManager.setOnboarded(true);
+
+    this.showOnboarding(false);
+    this.handleProfileChange();
+    this.switchTab('dashboard');
+    this.showToast('Welcome to GreenMaster AI! Your personalized lawn care schedule is ready.');
   },
 
   renderProfileForm() {
@@ -435,21 +591,18 @@ const App = {
       'Dethatcher / Scarifier',
       'Coring Aerator',
       'Battery Backpack Sprayer',
-      'Calibrated Rotary Spreader',
-      'Lawn Levelawn / Sand Drag'
+      'Calibrated Rotary Spreader'
     ], this.profile.equipment);
 
     this.renderChecklistGroup('fertilisers-checklist', [
       'Slow Release Granular (20-2-10)',
       'Liquid Foliar Nitrogen & Iron',
-      'Potassium Silicate (Blade stiffener)',
       'Seaweed & Humic Acid Biostimulant'
     ], this.profile.fertilisers);
 
     this.renderChecklistGroup('herbicides-checklist', [
       'Prodiamine / Barricade (Pre-emergent)',
       'Bow & Arrow / Dicamba (Selective Broadleaf)',
-      'Monument / Sulfonylurea (Nutgrass & Sedges)',
       'Primo Maxx / Plant Growth Regulator (PGR)',
       'Soil Wetting Agent (Surfactant)'
     ], [...this.profile.herbicides, ...(this.profile.specialTreatments || [])]);
@@ -528,6 +681,7 @@ const App = {
     StorageManager.saveActivePlan(this.currentPlan);
 
     this.renderHeader();
+    this.renderDashboard();
     this.renderTasksList();
     this.renderAnalytics();
   },
@@ -570,14 +724,10 @@ const App = {
   },
 
   renderAnalytics() {
-    // Annual Nitrogen Budget calculation
     const area = this.profile.lawnArea || 250;
     const tier = this.profile.tier;
-    // Pro lawns aim for 3-4 lbs N / 1000 sq ft or ~15-20g N / m2 per year
-    // Semi pro: ~10-12g N / m2
-    // Low: ~5-8g N / m2
     const targetNPerM2 = tier === 'full_pro' ? 18 : tier === 'semi_pro' ? 12 : 7;
-    const totalAnnualN = Math.round((targetNPerM2 * area) / 1000); // in kg
+    const totalAnnualN = Math.round((targetNPerM2 * area) / 1000);
 
     const nBudgetEl = document.getElementById('metric-n-budget');
     if (nBudgetEl) nBudgetEl.innerText = `${totalAnnualN} kg N / Year`;
@@ -598,7 +748,7 @@ const App = {
     if (!toast) {
       toast = document.createElement('div');
       toast.id = 'app-toast';
-      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-slate-900/95 text-white text-xs font-medium rounded-full shadow-2xl transition-all duration-300 pointer-events-none opacity-0';
+      toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-slate-900/95 text-white text-xs font-medium rounded-full shadow-2xl transition-all duration-300 pointer-events-none opacity-0';
       document.body.appendChild(toast);
     }
     toast.innerText = message;
