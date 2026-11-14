@@ -274,6 +274,7 @@ const App = {
     this.renderTasksList();
     this.renderVisionZoneSelector();
     this.renderProfileForm();
+    this.renderProfileSections();
     this.renderNotificationStatus();
     this.renderHistory();
     this.renderAnalytics();
@@ -348,21 +349,151 @@ const App = {
   },
 
   promptAddZone() {
-    const name = prompt('Section Name (e.g. Front - Left Strip, Backyard Dog Run, Pool Area):', 'Front Nature Strip');
-    if (!name) return;
-    const attention = prompt('Attention Level (showpiece / standard / recovery / low):', 'recovery') || 'standard';
-    const hoc = prompt('Target Cut Height (HOC in mm):', '20');
-    const sun = prompt('Sun Exposure (Full Sun / Partial Shade / Heavy Shade):', 'Full Sun');
+    this.openSectionModal();
+  },
 
-    StorageManager.addZone({
-      name,
-      attentionLevel: attention.toLowerCase(),
-      hoc: Number(hoc) || 20,
-      area: 30,
-      sunExposure: sun || 'Full Sun'
-    });
+  renderProfileSections() {
+    const container = document.getElementById('profile-sections-list');
+    if (!container) return;
+    const zones = StorageManager.getZones();
+
+    const attentionBadges = {
+      'showpiece': { label: '⭐ Showpiece', cls: 'bg-emerald-100 text-emerald-800' },
+      'recovery': { label: '🔥 TLC / Recovery', cls: 'bg-amber-100 text-amber-800' },
+      'standard': { label: '🌿 Standard', cls: 'bg-slate-100 text-slate-700' },
+      'low': { label: '🛋️ Low-Key', cls: 'bg-slate-100 text-slate-500' }
+    };
+
+    if (zones.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-3 text-slate-400 text-xs">
+          <span>No sections added yet. Tap "+ Add" to create your first area.</span>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = zones.map(z => {
+      const badge = attentionBadges[z.attentionLevel] || attentionBadges['standard'];
+      return `
+        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
+          <div class="space-y-0.5 min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <strong class="text-slate-900 text-xs truncate">${z.name}</strong>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.cls}">${badge.label}</span>
+            </div>
+            <div class="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+              <span>${z.grassType || 'Turf'}</span>
+              <span>•</span>
+              <span>${z.hoc || 20}mm HOC</span>
+              <span>•</span>
+              <span>${z.sunExposure || 'Full Sun'}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button type="button" onclick="App.openSectionModal('${z.id}')" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all" title="Edit Section">
+              <i data-lucide="edit-3" class="w-4 h-4"></i>
+            </button>
+            ${zones.length > 1 ? `
+              <button type="button" onclick="App.deleteCustomSection('${z.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Section">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
+  },
+
+  openSectionModal(zoneId = null) {
+    const modal = document.getElementById('section-modal');
+    const titleEl = document.getElementById('section-modal-title');
+    const idInput = document.getElementById('sec-modal-id');
+    const nameInput = document.getElementById('sec-modal-name');
+    const attentionSelect = document.getElementById('sec-modal-attention');
+    const grassSelect = document.getElementById('sec-modal-grass');
+    const sunSelect = document.getElementById('sec-modal-sun');
+    const hocInput = document.getElementById('sec-modal-hoc');
+    const areaInput = document.getElementById('sec-modal-area');
+
+    if (!modal) return;
+
+    if (zoneId) {
+      const zones = StorageManager.getZones();
+      const z = zones.find(item => item.id === zoneId);
+      if (z) {
+        if (titleEl) titleEl.innerText = 'Edit Lawn Section';
+        if (idInput) idInput.value = z.id;
+        if (nameInput) nameInput.value = z.name;
+        if (attentionSelect) attentionSelect.value = z.attentionLevel || 'standard';
+        if (grassSelect) grassSelect.value = z.grassType || 'Bermuda / Couch';
+        if (sunSelect) sunSelect.value = z.sunExposure || 'Full Sun (6+ hrs)';
+        if (hocInput) hocInput.value = z.hoc || 15;
+        if (areaInput) areaInput.value = z.area || 50;
+      }
+    } else {
+      if (titleEl) titleEl.innerText = 'Add Lawn Section';
+      if (idInput) idInput.value = '';
+      if (nameInput) nameInput.value = '';
+      if (attentionSelect) attentionSelect.value = 'standard';
+      if (grassSelect) grassSelect.value = this.profile.grassType || 'Bermuda / Couch';
+      if (sunSelect) sunSelect.value = 'Full Sun (6+ hrs)';
+      if (hocInput) hocInput.value = this.profile.hoc || 15;
+      if (areaInput) areaInput.value = 50;
+    }
+
+    modal.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => { if (nameInput) nameInput.focus(); }, 100);
+  },
+
+  closeSectionModal() {
+    const modal = document.getElementById('section-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  saveCustomSectionFromModal(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const id = document.getElementById('sec-modal-id')?.value;
+    const name = document.getElementById('sec-modal-name')?.value.trim();
+    if (!name) {
+      this.showToast('Please give your section a name.');
+      return;
+    }
+    const attentionLevel = document.getElementById('sec-modal-attention')?.value || 'standard';
+    const grassType = document.getElementById('sec-modal-grass')?.value || 'Bermuda / Couch';
+    const sunExposure = document.getElementById('sec-modal-sun')?.value || 'Full Sun (6+ hrs)';
+    const hoc = Number(document.getElementById('sec-modal-hoc')?.value || 15);
+    const area = Number(document.getElementById('sec-modal-area')?.value || 50);
+
+    if (id) {
+      StorageManager.updateZone(id, { name, attentionLevel, grassType, sunExposure, hoc, area });
+      this.showToast(`Updated section "${name}"!`);
+    } else {
+      StorageManager.addZone({ name, attentionLevel, grassType, sunExposure, hoc, area });
+      this.showToast(`Added section "${name}"!`);
+    }
+
+    this.closeSectionModal();
     this.handleProfileChange();
-    this.showToast(`Section "${name}" added!`);
+  },
+
+  deleteCustomSection(id) {
+    const zones = StorageManager.getZones();
+    if (zones.length <= 1) {
+      this.showToast('You must keep at least one lawn section.');
+      return;
+    }
+    const target = zones.find(z => z.id === id);
+    if (confirm(`Are you sure you want to remove "${target ? target.name : 'this section'}"?`)) {
+      StorageManager.deleteZone(id);
+      this.handleProfileChange();
+      this.showToast('Section removed.');
+    }
   },
 
   renderDashboard() {
@@ -819,6 +950,8 @@ const App = {
       modal.classList.toggle('hidden', !show);
       if (show) {
         this.onboardingStep = 1;
+        const currentZones = StorageManager.getZones();
+        this.consultationData.zones = currentZones && currentZones.length > 0 ? currentZones.map(z => ({ ...z })) : [];
         if (this.profile && Array.isArray(this.profile.customOwnedProducts)) {
           this.consultationData.customOwnedProducts = this.profile.customOwnedProducts.map((name, i) => ({
             key: 'existing_' + i,
@@ -893,7 +1026,9 @@ const App = {
       bubbleEl.innerHTML = this.bladeDialogues[this.onboardingStep - 1] || "Let's dial in your lawn!";
     }
 
-    if (this.onboardingStep === 6) {
+    if (this.onboardingStep === 2) {
+      this.renderOnboardingSections();
+    } else if (this.onboardingStep === 6) {
       this.renderConsultationSummary();
     }
 
@@ -902,30 +1037,171 @@ const App = {
     }
   },
 
+  renderOnboardingSections() {
+    const container = document.getElementById('ob-sections-list');
+    if (!container) return;
+
+    if (!this.consultationData.zones || this.consultationData.zones.length === 0) {
+      const existing = StorageManager.getZones();
+      this.consultationData.zones = existing && existing.length > 0 ? existing.map(z => ({ ...z })) : [
+        {
+          id: 'zone_front',
+          name: 'Front Yard (Main)',
+          attentionLevel: 'showpiece',
+          grassType: 'Bermuda / Couch',
+          sunExposure: 'Full Sun (6+ hrs)',
+          hoc: 12
+        },
+        {
+          id: 'zone_back',
+          name: 'Back Yard (Family Area)',
+          attentionLevel: 'standard',
+          grassType: 'Buffalo / St Augustine',
+          sunExposure: 'Partial Shade (3-5 hrs)',
+          hoc: 35
+        }
+      ];
+    }
+
+    container.innerHTML = this.consultationData.zones.map((z) => `
+      <div class="ob-zone-card p-3 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2.5 transition-all" data-zone-id="${z.id}">
+        <!-- Section Header with editable name and delete -->
+        <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div class="flex items-center gap-1.5 flex-1 min-w-0">
+            <span class="text-sm">🌱</span>
+            <input type="text" value="${z.name}" placeholder="Section Name (e.g. Front Lawn)" 
+              class="ob-sec-name font-bold text-xs text-slate-800 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 rounded-lg px-2 py-1 w-full focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all">
+          </div>
+          ${this.consultationData.zones.length > 1 ? `
+            <button type="button" onclick="App.removeOnboardingSection('${z.id}')" class="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-all flex items-center gap-0.5 text-[10px] font-semibold flex-shrink-0" title="Delete Section">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <span>Remove</span>
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- Attention Level -->
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Attention Level</span>
+          <select class="ob-sec-attention bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500">
+            <option value="showpiece" ${z.attentionLevel === 'showpiece' ? 'selected' : ''}>⭐ Showpiece (High Attention)</option>
+            <option value="standard" ${z.attentionLevel === 'standard' ? 'selected' : ''}>🌿 Standard Care</option>
+            <option value="recovery" ${z.attentionLevel === 'recovery' ? 'selected' : ''}>🔥 Recovery / TLC Mode</option>
+            <option value="low" ${z.attentionLevel === 'low' ? 'selected' : ''}>🛋️ Low-Key / Minimal</option>
+          </select>
+        </div>
+
+        <!-- Grass & Sun -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <span class="text-[9px] font-semibold text-slate-400 block mb-0.5">Grass Variety</span>
+            <select class="ob-sec-grass w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500">
+              <option value="Bermuda / Couch" ${(z.grassType || '').includes('Bermuda') || (z.grassType || '').includes('Couch') ? 'selected' : ''}>Bermuda / Couch</option>
+              <option value="Buffalo / St Augustine" ${(z.grassType || '').includes('Buffalo') ? 'selected' : ''}>Buffalo / Sir Walter</option>
+              <option value="Zoysia" ${(z.grassType || '').includes('Zoysia') ? 'selected' : ''}>Zoysia</option>
+              <option value="Kikuyu" ${(z.grassType || '').includes('Kikuyu') ? 'selected' : ''}>Kikuyu</option>
+              <option value="Kentucky Bluegrass" ${(z.grassType || '').includes('Kentucky') ? 'selected' : ''}>Kentucky Bluegrass</option>
+              <option value="Tall Fescue" ${(z.grassType || '').includes('Fescue') ? 'selected' : ''}>Tall Fescue</option>
+              <option value="Perennial Ryegrass" ${(z.grassType || '').includes('Ryegrass') ? 'selected' : ''}>Ryegrass</option>
+            </select>
+          </div>
+          <div>
+            <span class="text-[9px] font-semibold text-slate-400 block mb-0.5">Sun Exposure</span>
+            <select class="ob-sec-sun w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500">
+              <option value="Full Sun (6+ hrs)" ${(z.sunExposure || '').includes('Full') ? 'selected' : ''}>Full Sun (6+ hrs)</option>
+              <option value="Partial Shade (3-5 hrs)" ${(z.sunExposure || '').includes('Partial') ? 'selected' : ''}>Partial Shade (3-5 hrs)</option>
+              <option value="Heavy Shade (<3 hrs)" ${(z.sunExposure || '').includes('Heavy') ? 'selected' : ''}>Heavy Shade (<3 hrs)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Height of Cut -->
+        <div class="flex items-center justify-between text-xs pt-1">
+          <div class="flex flex-col">
+            <span class="text-slate-600 font-medium text-[11px]">Target Cut Height (HOC):</span>
+            <span class="text-[9px] text-slate-400">Shaded areas need +10-15mm higher</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <input type="number" min="5" max="80" value="${z.hoc || 20}" 
+              class="ob-sec-hoc w-16 bg-slate-50 border border-slate-200 rounded-lg p-1 text-xs font-bold text-slate-800 text-center focus:bg-white focus:ring-2 focus:ring-emerald-500">
+            <span class="text-slate-500 font-medium">mm</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
+  },
+
+  addOnboardingSection(initialData = {}) {
+    this.harvestOnboardingSections();
+    const count = this.consultationData.zones.length + 1;
+    const newZone = {
+      id: 'zone_' + Date.now(),
+      name: initialData.name || `Section ${count}`,
+      attentionLevel: initialData.attentionLevel || 'standard',
+      grassType: initialData.grassType || (this.consultationData.grassType || 'Bermuda / Couch'),
+      sunExposure: initialData.sunExposure || 'Full Sun (6+ hrs)',
+      hoc: initialData.hoc || 20,
+      area: 50
+    };
+    this.consultationData.zones.push(newZone);
+    this.renderOnboardingSections();
+    this.showToast(`Added "${newZone.name}"`);
+  },
+
+  addQuickSection(name, attentionLevel, grassType, sunExposure, hoc) {
+    this.addOnboardingSection({ name, attentionLevel, grassType, sunExposure, hoc });
+  },
+
+  removeOnboardingSection(id) {
+    this.harvestOnboardingSections();
+    if (this.consultationData.zones.length <= 1) {
+      this.showToast('You must have at least one lawn section.');
+      return;
+    }
+    this.consultationData.zones = this.consultationData.zones.filter(z => z.id !== id);
+    this.renderOnboardingSections();
+    this.showToast('Section removed.');
+  },
+
+  harvestOnboardingSections() {
+    const cards = document.querySelectorAll('.ob-zone-card');
+    if (!cards || cards.length === 0) return;
+    const updated = [];
+    cards.forEach(card => {
+      const id = card.getAttribute('data-zone-id');
+      const name = card.querySelector('.ob-sec-name')?.value.trim() || 'My Lawn';
+      const attentionLevel = card.querySelector('.ob-sec-attention')?.value || 'standard';
+      const grassType = card.querySelector('.ob-sec-grass')?.value || 'Bermuda / Couch';
+      const sunExposure = card.querySelector('.ob-sec-sun')?.value || 'Full Sun (6+ hrs)';
+      const hoc = Number(card.querySelector('.ob-sec-hoc')?.value || 20);
+
+      updated.push({
+        id: id || ('zone_' + Date.now()),
+        name,
+        attentionLevel,
+        grassType,
+        sunExposure,
+        hoc,
+        area: 50,
+        yard: name.toLowerCase().includes('back') ? 'Back Yard' : 'Front Yard'
+      });
+    });
+    this.consultationData.zones = updated;
+  },
+
   harvestStepData() {
     const step = this.onboardingStep;
     if (step === 2) {
       this.consultationData.tier = document.querySelector('input[name="ob-tier"]:checked')?.value || 'semi_pro';
-      this.consultationData.grassType = document.getElementById('ob-grass-type')?.value || 'Bermuda / Couch';
-      this.consultationData.hoc = Number(document.getElementById('ob-hoc')?.value || 12);
-      
-      const frontSun = document.getElementById('ob-front-sun')?.value || 'Full Sun (6+ hrs)';
-      const frontAttention = document.getElementById('ob-front-attention')?.value || 'showpiece';
-      
-      const vergeHoc = Number(document.getElementById('ob-verge-hoc')?.value || 18);
-      const vergeAttention = document.getElementById('ob-verge-attention')?.value || 'recovery';
-
-      const backGrass = document.getElementById('ob-back-grass')?.value || 'Buffalo / St Augustine';
-      const backHoc = Number(document.getElementById('ob-back-hoc')?.value || 35);
-      const backSun = document.getElementById('ob-back-sun')?.value || 'Partial Shade (3-5 hrs)';
-      const backAttention = document.getElementById('ob-back-attention')?.value || 'standard';
-
-      this.consultationData.zones = [
-        { id: 'front_main', name: 'Front Yard (Showpiece)', yard: 'Front Yard', attentionLevel: frontAttention, grassType: this.consultationData.grassType, hoc: this.consultationData.hoc, area: 90, sunExposure: frontSun },
-        { id: 'front_verge', name: 'Front Nature Strip / Verge', yard: 'Front Yard', attentionLevel: vergeAttention, grassType: this.consultationData.grassType, hoc: vergeHoc, area: 30, sunExposure: 'Full Sun' },
-        { id: 'back_main', name: 'Back Yard (Main Lawn)', yard: 'Back Yard', attentionLevel: backAttention, grassType: backGrass, hoc: backHoc, area: 100, sunExposure: backSun },
-        { id: 'back_shade', name: 'Back Yard (Shaded Area)', yard: 'Back Yard', attentionLevel: 'recovery', grassType: backGrass, hoc: 45, area: 30, sunExposure: 'Heavy Shade (<3 hrs)' }
-      ];
+      this.harvestOnboardingSections();
+      if (this.consultationData.zones && this.consultationData.zones.length > 0) {
+        this.consultationData.grassType = this.consultationData.zones[0].grassType;
+        this.consultationData.hoc = this.consultationData.zones[0].hoc;
+      }
     } else if (step === 3) {
       this.consultationData.mowerType = document.getElementById('ob-mower-type')?.value || 'Cylinder / Reel Mower';
       const eq = [];
@@ -951,18 +1227,25 @@ const App = {
     const recProductsContainer = document.getElementById('ob-recommended-products');
     if (!diagContainer) return;
 
+    const attentionNames = {
+      'showpiece': '⭐ Showpiece',
+      'recovery': '🔥 TLC / Recovery',
+      'standard': '🌿 Standard Care',
+      'low': '🛋️ Low-Key'
+    };
+
     let diagnosisHTML = `
       <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
         <div class="font-bold flex items-center gap-1.5 text-emerald-900">
           <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
           <span>Blade's Section Diagnosis:</span>
         </div>
-        <p class="leading-relaxed">Configured <strong>${d.zones.length} distinct lawn sections</strong> with tailored attention levels.</p>
+        <p class="leading-relaxed">Configured <strong>${d.zones.length} distinct lawn section${d.zones.length === 1 ? '' : 's'}</strong> with custom names & attention levels.</p>
         <div class="pt-1.5 border-t border-emerald-200/80 text-[11px] text-emerald-800 space-y-1">
-          <div>• Front Showpiece: <strong>${d.grassType} @ ${d.hoc}mm (⭐ Showpiece)</strong></div>
-          <div>• Nature Strip: <strong>${d.hoc + 6}mm (🔥 Recovery / High TLC)</strong></div>
-          <div>• Backyard: <strong>${d.zones[2]?.grassType || 'Buffalo'} @ ${d.zones[2]?.hoc || 35}mm</strong></div>
-          <div>• Pre-Emergent: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Urgent'}</strong></div>
+          ${d.zones.map(z => `
+            <div>• <strong>${z.name}</strong>: ${z.grassType} @ ${z.hoc}mm (${attentionNames[z.attentionLevel] || '🌿 Standard'})</div>
+          `).join('')}
+          <div class="pt-1 text-[10px] text-emerald-700">• Pre-Emergent: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Urgent Application'}</strong></div>
         </div>
       </div>
     `;

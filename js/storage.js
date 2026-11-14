@@ -151,6 +151,26 @@ const StorageManager = {
     return newZone;
   },
 
+  deleteZone(id) {
+    const zones = this.getZones().filter(z => z.id !== id);
+    this.saveZones(zones);
+    if (this.getActiveZoneId() === id) {
+      this.setActiveZoneId('all');
+    }
+    return zones;
+  },
+
+  updateZone(id, fields) {
+    const zones = this.getZones().map(z => {
+      if (z.id === id) {
+        return { ...z, ...fields };
+      }
+      return z;
+    });
+    this.saveZones(zones);
+    return zones;
+  },
+
   isOnboarded() {
     return localStorage.getItem(this.KEYS.ONBOARDED) === 'true';
   },
