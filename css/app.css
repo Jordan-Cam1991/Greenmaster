@@ -1,4 +1,4 @@
-/* Custom styles for GreenMaster AI */
+/* Custom styles for GreenMaster AI & Mascot Blade */
 :root {
   --primary-emerald: #059669;
   --primary-glow: rgba(5, 150, 105, 0.25);
@@ -22,14 +22,7 @@ body {
   border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
-.glass-dark {
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Hide scrollbars while preserving scrolling */
+/* Hide scrollbars */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -38,7 +31,61 @@ body {
   scrollbar-width: none;
 }
 
-/* Pulse animation for AI scanner */
+/* Mascot Blade Animations */
+@keyframes blade-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+@keyframes blade-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+.mascot-bounce {
+  animation: blade-bounce 2.6s ease-in-out infinite;
+}
+
+.mascot-wave {
+  animation: blade-wave 1.4s ease-in-out infinite;
+}
+
+/* Duolingo style speech bubble */
+.speech-bubble {
+  position: relative;
+  background: #ffffff;
+  border-radius: 1.25rem;
+  padding: 0.9rem 1.1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border: 2px solid #e2e8f0;
+}
+
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: -9px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 9px solid #e2e8f0;
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  top: 19px;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 8px solid #ffffff;
+}
+
+/* Laser scan animation */
 @keyframes scan-line {
   0% { top: 0%; opacity: 0; }
   15% { opacity: 1; }

@@ -1,6 +1,6 @@
 /**
  * Main Application Controller for GreenMaster AI
- * Includes Comprehensive Lawn Consultation Wizard & Dynamic Agronomy Engine.
+ * Featuring "Blade" — Your Friendly Pocket Lawn Pal & Mascot!
  */
 const App = {
   activeTab: 'dashboard',
@@ -14,7 +14,7 @@ const App = {
   onboardingStep: 1,
   totalOnboardingSteps: 5,
   consultationData: {
-    pathway: 'existing', // 'existing' or 'fresh'
+    pathway: 'existing',
     tier: 'full_pro',
     grassType: 'Bermuda / Couch',
     hoc: 12,
@@ -31,11 +31,18 @@ const App = {
     herbicidesOwned: []
   },
 
+  bladeDialogues: [
+    "G'day! I'm <strong>Blade</strong>, your pocket lawn pal! 🌱 Before we dive into the app, let's have a quick chat about your lawn so I can help you achieve all your green dreams! Where are we starting from today?",
+    "Love that! Now, what standard are we shooting for? A chill weekend patch, or a razor-sharp tournament bowling green?",
+    "Nice choice! Let's check your shed. What mower and gear do you have ready to roll?",
+    "To make your plan super accurate, tell me: when did your grass last get a haircut or some lawn food?",
+    "You're an absolute legend! I've crunched the agronomy and drafted your 6-horizon roadmap. Let's make your neighbours jealous!"
+  ],
+
   async init() {
     this.profile = StorageManager.getProfile();
     this.currentPlan = StorageManager.getActivePlan();
 
-    // If no plan exists yet, generate baseline plan
     if (!this.currentPlan) {
       const initialMetrics = {
         densityPercent: 84,
@@ -88,7 +95,6 @@ const App = {
   },
 
   bindEvents() {
-    // Navigation Tabs
     document.querySelectorAll('[data-tab]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tab = e.currentTarget.getAttribute('data-tab');
@@ -96,7 +102,6 @@ const App = {
       });
     });
 
-    // Horizon Tabs (1W, 2W, 1M, 1Q, 6M, 1Y)
     document.querySelectorAll('[data-horizon]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const horizon = e.currentTarget.getAttribute('data-horizon');
@@ -104,13 +109,11 @@ const App = {
       });
     });
 
-    // Photo input
     const photoInput = document.getElementById('lawn-photo-input');
     if (photoInput) {
       photoInput.addEventListener('change', (e) => this.handlePhotoSelected(e));
     }
 
-    // Drag and drop photo
     const dropZone = document.getElementById('photo-dropzone');
     if (dropZone) {
       dropZone.addEventListener('dragover', (e) => {
@@ -129,7 +132,6 @@ const App = {
       });
     }
 
-    // Demo Turfs
     document.querySelectorAll('[data-demo-turf]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const type = e.currentTarget.getAttribute('data-demo-turf');
@@ -137,7 +139,6 @@ const App = {
       });
     });
 
-    // Profile Form
     const profileForm = document.getElementById('profile-form');
     if (profileForm) {
       profileForm.addEventListener('change', () => this.handleProfileChange());
@@ -148,7 +149,6 @@ const App = {
       });
     }
 
-    // Calendar Export
     const calBtn = document.getElementById('export-calendar-btn');
     if (calBtn) {
       calBtn.addEventListener('click', () => {
@@ -157,13 +157,12 @@ const App = {
       });
     }
 
-    // Push notification toggle
     const notifBtn = document.getElementById('enable-notifications-btn');
     if (notifBtn) {
       notifBtn.addEventListener('click', async () => {
         const granted = await NotificationManager.requestPermission();
         if (granted) {
-          NotificationManager.showNotification('GreenMaster AI Active', 'Push reminders & rain alerts configured.');
+          NotificationManager.showNotification('GreenMaster AI Active', 'Blade is ready to remind you of your cuts & feeds! 🌱');
           this.showToast('Push Notifications Enabled!');
           this.renderNotificationStatus();
         } else {
@@ -172,11 +171,10 @@ const App = {
       });
     }
 
-    // Test notification button
     const testNotifBtn = document.getElementById('test-notification-btn');
     if (testNotifBtn) {
       testNotifBtn.addEventListener('click', () => {
-        NotificationManager.showNotification('🌱 Lawn Checkup Reminder', 'Time for your weekly photo scan & cylinder reel mow!');
+        NotificationManager.showNotification('🌱 Blade: Lawn Time!', 'Time for your weekly photo scan & cylinder reel mow!');
         NotificationManager.playTone();
         this.showToast('Notification sent & chime played!');
       });
@@ -298,6 +296,19 @@ const App = {
       hocTextEl.innerText = `${this.profile.hoc}mm (${(this.profile.hoc / 25.4).toFixed(2)}")`;
     }
 
+    // 6. Blade Mascot Tip of the Day
+    const mascotTipEl = document.getElementById('dash-mascot-tip');
+    if (mascotTipEl) {
+      const tips = [
+        "Hey! Remember the 1/3rd rule: never take off more than a third of the blade in one cut to keep my roots strong! ✂️",
+        "If you want that dark tournament emerald pop without exploding growth, liquid spoon-feed iron + nitrogen! 🧪",
+        "A sharp reel or rotary blade stops frayed yellow leaf tips and keeps me disease-free! 💎",
+        "Deep watering at dawn forces my roots to dig deep into the earth! 💧"
+      ];
+      const randomTip = tips[Math.floor(Math.random() * tips.length)];
+      mascotTipEl.innerText = randomTip;
+    }
+
     this.renderDashboardWeather();
   },
 
@@ -346,21 +357,21 @@ const App = {
     StorageManager.logMow();
     NotificationManager.playTone();
     this.renderDashboard();
-    this.showToast('✂️ Mowing logged! Recorded to lawn timeline.');
+    this.showToast('✂️ Nice cut! Blade loves a fresh haircut.');
   },
 
   logQuickWater() {
     StorageManager.logWater();
     NotificationManager.playTone();
     this.renderDashboard();
-    this.showToast('💧 Irrigation cycle logged!');
+    this.showToast('💧 Ahh, refreshing! Irrigation cycle logged.');
   },
 
   logQuickFeed() {
     StorageManager.logFeed('Foliar Spoon-feed');
     NotificationManager.playTone();
     this.renderDashboard();
-    this.showToast('🧪 Fertiliser application logged!');
+    this.showToast('🧪 Delicious! Fertiliser application logged.');
   },
 
   renderTasksList() {
@@ -388,7 +399,7 @@ const App = {
     if (tasks.length === 0) {
       container.innerHTML = `
         <div class="text-center py-12 text-slate-400">
-          <p class="text-sm">No tasks pending for this timeframe.</p>
+          <p class="text-sm">No tasks pending for this timeframe. Blade says take a break! ☕</p>
         </div>
       `;
       return;
@@ -421,7 +432,6 @@ const App = {
       const isDone = !!completedTasks[taskId];
       if (isDone) completedCount++;
 
-      // Check if task contains a shopping link to lawntips.com
       const hasShopLink = task.tip && task.tip.includes('lawntips.com');
 
       return `
@@ -439,7 +449,7 @@ const App = {
               </div>
               ${task.tip ? `
                 <p class="text-xs text-slate-500 mt-1.5 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  <span class="font-semibold text-emerald-700">Agronomist Recommendation:</span> ${task.tip}
+                  <span class="font-semibold text-emerald-700">Blade's Tip:</span> ${task.tip}
                   ${hasShopLink ? `
                     <a href="https://lawntips.com" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline bg-emerald-100/60 px-2 py-1 rounded-md">
                       <span>Explore on lawntips.com</span>
@@ -457,7 +467,6 @@ const App = {
       `;
     }).join('');
 
-    // Update progress bar
     const progressEl = document.getElementById('horizon-progress-bar');
     const progressText = document.getElementById('horizon-progress-text');
     const percent = Math.round((completedCount / tasks.length) * 100);
@@ -505,14 +514,12 @@ const App = {
       const settings = StorageManager.getSettings();
       const result = await VisionEngine.analyzeImage(imageSrc, this.profile, settings.apiKey);
 
-      // Save as new active plan
       this.currentPlan = {
         date: new Date().toISOString(),
         ...result
       };
       StorageManager.saveActivePlan(this.currentPlan);
 
-      // Save slim scan record
       StorageManager.addScanRecord(result);
 
       setTimeout(() => {
@@ -545,10 +552,10 @@ const App = {
       laser.classList.toggle('hidden', !scanning);
     }
     if (statusText) {
-      statusText.innerText = scanning ? 'AI Agronomist analyzing chlorophyll, density & weed patterns...' : 'Ready for photo';
+      statusText.innerText = scanning ? 'Blade is inspecting your chlorophyll, density & weed patterns...' : 'Ready for photo';
     }
     if (scanBtn) {
-      scanBtn.innerText = scanning ? 'Analyzing...' : 'Snap or Upload Lawn Photo';
+      scanBtn.innerText = scanning ? 'Blade Analyzing...' : 'Snap or Upload Lawn Photo';
     }
   },
 
@@ -577,7 +584,7 @@ const App = {
     this.switchTab('planner');
   },
 
-  /* ------------------- ONBOARDING & CONSULTATION WIZARD ------------------- */
+  /* ------------------- FRIENDLY MASCOT ONBOARDING WIZARD ------------------- */
 
   showOnboarding(show = true) {
     const modal = document.getElementById('onboarding-modal');
@@ -599,12 +606,12 @@ const App = {
   },
 
   nextOnboardingStep() {
-    // Collect data from current step
     this.harvestStepData();
 
     if (this.onboardingStep < this.totalOnboardingSteps) {
       this.onboardingStep++;
       this.renderOnboardingStep();
+      NotificationManager.playTone();
     } else {
       this.finishConsultation();
     }
@@ -626,7 +633,7 @@ const App = {
     }
 
     // Step indicator & progress
-    const titleEl = document.getElementById('ob-step-title');
+    const bubbleEl = document.getElementById('ob-mascot-speech');
     const progressEl = document.getElementById('ob-progress-bar');
     const backBtn = document.getElementById('ob-back-btn');
     const nextBtn = document.getElementById('ob-next-btn');
@@ -641,19 +648,14 @@ const App = {
     }
 
     if (nextBtn) {
-      nextBtn.innerText = this.onboardingStep === this.totalOnboardingSteps ? 'Generate Master Plan →' : 'Continue →';
+      nextBtn.innerText = this.onboardingStep === this.totalOnboardingSteps ? "Let's Grow! →" : 'Continue →';
     }
 
-    const titles = [
-      'Lawn Profile & Pathway',
-      'Target Standard & Grass Type',
-      'Mower & Equipment Audit',
-      'Recent Maintenance History',
-      'AI Agronomy Consultation & Starter Kit'
-    ];
-    if (titleEl) titleEl.innerText = titles[this.onboardingStep - 1] || 'Consultation';
+    // Update Blade's friendly dialogue
+    if (bubbleEl) {
+      bubbleEl.innerHTML = this.bladeDialogues[this.onboardingStep - 1] || "Let's dial in your lawn!";
+    }
 
-    // If final consultation step, render diagnosis & recommendations
     if (this.onboardingStep === 5) {
       this.renderConsultationSummary();
     }
@@ -694,51 +696,46 @@ const App = {
     const recProductsContainer = document.getElementById('ob-recommended-products');
     if (!diagContainer) return;
 
-    // Build Agronomist Verdict
     let diagnosisHTML = `
       <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
         <div class="font-bold flex items-center gap-1.5 text-emerald-900">
           <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
-          <span>Consultation Diagnosis:</span>
+          <span>Blade's Agronomic Assessment:</span>
         </div>
-        <p class="leading-relaxed">Targeting <strong>${d.tier === 'full_pro' ? 'Full Tournament / Bowling Green Standard' : d.tier === 'semi_pro' ? 'Semi-Pro Enthusiast' : 'Weekend Warrior'}</strong> with <strong>${d.grassType}</strong> at <strong>${d.hoc}mm</strong>.</p>
+        <p class="leading-relaxed">Targeting <strong>${d.tier === 'full_pro' ? 'Tournament / Bowling Green Perfection' : d.tier === 'semi_pro' ? 'Semi-Pro Striping Pride' : 'Weekend Warrior Chill'}</strong> with <strong>${d.grassType}</strong> at <strong>${d.hoc}mm</strong>.</p>
         <div class="pt-1.5 border-t border-emerald-200/80 text-[11px] text-emerald-800 space-y-1">
           <div>• Mower: <strong>${d.mowerType}</strong></div>
-          <div>• Last Cut: <strong>${d.lastMowDays === 0 ? 'Today' : d.lastMowDays + ' days ago'}</strong></div>
-          <div>• Pre-Emergent Barrier: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Needs Application'}</strong></div>
+          <div>• Last Haircut: <strong>${d.lastMowDays === 0 ? 'Today' : d.lastMowDays + ' days ago'}</strong></div>
+          <div>• Weed Barrier: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Needs Application'}</strong></div>
         </div>
       </div>
     `;
     diagContainer.innerHTML = diagnosisHTML;
 
-    // Curated recommendations (e.g. Lawn Tips)
     if (recProductsContainer) {
       const recs = [];
 
-      // If pre-emergent missing
       if (d.preEmergentStatus === 'none' || d.preEmergentStatus === 'over_6m') {
         recs.push({
           name: 'Prodiamine / Spartan Pre-Emergent',
-          why: 'Critical: Creates a chemical barrier in soil so summer weeds & crabgrass never sprout.',
+          why: 'Blocks weeds before seeds ever germinate in the topsoil.',
           source: 'Available at lawntips.com',
           url: 'https://lawntips.com'
         });
       }
 
-      // If foliar equipment or full pro
       if (d.tier === 'full_pro' || d.equipment.some(e => e.includes('Sprayer'))) {
         recs.push({
-          name: 'Lawn Tips Foliar & Iron Nutrient Combo',
-          why: 'Delivers rapid dark emerald chlorophyll response without surging vertical growth.',
+          name: 'Lawn Tips Foliar & Chelated Iron Pack',
+          why: 'Unlocks deep emerald chlorophyll pop without explosive growth surges.',
           source: 'Available at lawntips.com',
           url: 'https://lawntips.com'
         });
       }
 
-      // Wetting agent recommendation
       recs.push({
-        name: 'Tournament-Grade Soil Wetting Agent (Hydra-Flo)',
-        why: 'Prevents dry hydrophobic soil patches and cuts sprinkler water demand by 30%.',
+        name: 'Tournament Wetting Agent (Hydra-Flo)',
+        why: 'Stops dry hydrophobic patches and cuts watering demand by 30%.',
         source: 'Available at lawntips.com',
         url: 'https://lawntips.com'
       });
@@ -763,7 +760,6 @@ const App = {
     this.harvestStepData();
     const d = this.consultationData;
 
-    // Update Profile
     this.profile.tier = d.tier;
     this.profile.grassType = d.grassType;
     this.profile.hoc = d.hoc;
@@ -776,7 +772,6 @@ const App = {
       lastRenovation: d.lastRenovation
     };
 
-    // Update initial logs
     const initialLogs = StorageManager.getLogs();
     const mowDate = new Date();
     mowDate.setDate(mowDate.getDate() - d.lastMowDays);
@@ -793,7 +788,7 @@ const App = {
     this.showOnboarding(false);
     this.handleProfileChange();
     this.switchTab('dashboard');
-    this.showToast('🌱 Consultation complete! Master 6-horizon plan initialized.');
+    this.showToast("🌱 High-five! Blade has initialized your 6-horizon roadmap.");
   },
 
   renderProfileForm() {
@@ -810,7 +805,6 @@ const App = {
     setVal('prof-sprinklers', this.profile.sprinklers);
     setVal('prof-watering-freq', this.profile.wateringFreq);
 
-    // Checklist toggles
     this.renderChecklistGroup('equipment-checklist', [
       'Cylinder / Reel Mower',
       'Rotary Mower with Roller',
@@ -888,7 +882,6 @@ const App = {
     this.profile = updatedProfile;
     StorageManager.saveProfile(this.profile);
 
-    // Recompute the plan according to the new profile settings
     const activeHealth = this.currentPlan ? this.currentPlan.healthScore : 85;
     const recomputedPlan = PlannerEngine.generateDynamicPlan({
       cvMetrics: {

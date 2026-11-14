@@ -53,7 +53,7 @@
             <h1 id="header-lawn-name" class="font-bold text-slate-900 text-base leading-tight">My Turf</h1>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span id="header-tier-badge" class="px-2 py-0.5 rounded-full text-[10px] font-semibold badge-pro">Full Professional</span>
-              <span class="text-[11px] text-slate-400">• Updated weekly</span>
+              <span class="text-[11px] text-slate-400">• Blade active</span>
             </div>
           </div>
         </div>
@@ -71,6 +71,44 @@
 
     <!-- TAB 1: DASHBOARD VIEW (AT A GLANCE) -->
     <main id="view-dashboard" class="tab-view p-4 space-y-4">
+      
+      <!-- Blade Mascot Greeting & Daily Tip -->
+      <div class="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-3">
+        <!-- Blade SVG Avatar -->
+        <svg class="w-14 h-16 mascot-bounce flex-shrink-0" viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="50" cy="122" rx="26" ry="5" fill="#064e3b" opacity="0.2"/>
+          <path d="M50 10 C62 30 76 65 72 105 C70 118 64 122 50 122 C36 122 30 118 28 105 C24 65 38 30 50 10 Z" fill="url(#dash-blade-grad)" stroke="#047857" stroke-width="2.5"/>
+          <path d="M50 20 Q53 70 50 120" stroke="#34d399" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+          <path d="M26 62 Q50 56 74 62 L78 68 Q50 62 22 68 Z" fill="#ffffff" stroke="#065f46" stroke-width="2"/>
+          <path d="M28 58 Q50 48 72 58 L74 62 Q50 56 26 62 Z" fill="#059669"/>
+          <circle cx="41" cy="76" r="6" fill="#0f172a"/>
+          <circle cx="59" cy="76" r="6" fill="#0f172a"/>
+          <circle cx="43" cy="74" r="2.2" fill="#ffffff"/>
+          <circle cx="61" cy="74" r="2.2" fill="#ffffff"/>
+          <ellipse cx="33" cy="84" rx="3.5" ry="2" fill="#f43f5e" opacity="0.35"/>
+          <ellipse cx="67" cy="84" rx="3.5" ry="2" fill="#f43f5e" opacity="0.35"/>
+          <path d="M43 85 Q50 93 57 85" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path d="M27 88 Q16 80 18 72" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+          <path d="M73 88 Q84 84 82 92" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="dash-blade-grad" x1="50" y1="10" x2="50" y2="122" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#34d399"/>
+              <stop offset="60%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#059669"/>
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <div class="flex-1 text-xs">
+          <div class="flex items-center gap-1.5 font-bold text-slate-800">
+            <span>Blade's Pocket Tip</span>
+            <span class="px-2 py-0.2 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-bold">Lawn Pal</span>
+          </div>
+          <p id="dash-mascot-tip" class="text-slate-600 mt-0.5 leading-relaxed">
+            Looking sharp! Remember the 1/3rd cut rule: never take off more than a third in one go to keep my root system deep and strong! ✂️
+          </p>
+        </div>
+      </div>
       
       <!-- Smart Rain Forecast Banner -->
       <div id="dash-rain-alert-banner" class="p-3.5 rounded-3xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 shadow-sm flex items-start gap-3 transition-all cursor-pointer" onclick="App.switchTab('weather')">
@@ -194,7 +232,7 @@
           </button>
           <button onclick="App.showOnboarding(true)" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all btn-press flex items-center gap-1">
             <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
-            <span>Consultation</span>
+            <span>Chat with Blade</span>
           </button>
         </div>
       </div>
@@ -257,7 +295,7 @@
 
       <!-- Actionable Tasks List -->
       <div id="tasks-container" class="space-y-3">
-        <!-- Dynamically injected by App.renderTasksList() -->
+        <!-- Dynamically injected -->
       </div>
     </main>
 
@@ -487,7 +525,7 @@
 
         <button type="button" onclick="App.showOnboarding(true)" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-1.5 btn-press">
           <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
-          <span>Re-run Full Lawn Consultation</span>
+          <span>Re-chat with Blade (Lawn Consultation)</span>
         </button>
       </form>
     </main>
@@ -576,32 +614,59 @@
       </div>
     </nav>
 
-    <!-- COMPREHENSIVE ONBOARDING & CONSULTATION WIZARD MODAL -->
+    <!-- COMPREHENSIVE ONBOARDING & CONSULTATION WIZARD MODAL WITH MASCOT BLADE -->
     <div id="onboarding-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col justify-between overflow-y-auto no-scrollbar">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col justify-between overflow-y-auto no-scrollbar">
         
-        <!-- Header & Progress bar -->
+        <!-- Top Mascot & Speech Bubble Bar -->
         <div>
           <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
-              </div>
-              <h3 id="ob-step-title" class="font-bold text-slate-900 text-sm">Lawn Consultation</h3>
-            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Meet Blade • Your Pocket Lawn Pal</span>
             <button onclick="App.showOnboarding(false)" class="text-xs text-slate-400 hover:text-slate-600">✕ Close</button>
           </div>
-          <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+
+          <!-- Blade Character + Duolingo Speech Bubble -->
+          <div class="flex items-start gap-2.5 my-1">
+            <!-- Animated Blade SVG Mascot -->
+            <svg class="w-16 h-20 mascot-bounce flex-shrink-0" viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="122" rx="26" ry="5" fill="#064e3b" opacity="0.2"/>
+              <path d="M50 10 C62 30 76 65 72 105 C70 118 64 122 50 122 C36 122 30 118 28 105 C24 65 38 30 50 10 Z" fill="url(#ob-blade-grad)" stroke="#047857" stroke-width="2.5"/>
+              <path d="M50 20 Q53 70 50 120" stroke="#34d399" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+              <path d="M26 62 Q50 56 74 62 L78 68 Q50 62 22 68 Z" fill="#ffffff" stroke="#065f46" stroke-width="2"/>
+              <path d="M28 58 Q50 48 72 58 L74 62 Q50 56 26 62 Z" fill="#059669"/>
+              <circle cx="41" cy="76" r="6" fill="#0f172a"/>
+              <circle cx="59" cy="76" r="6" fill="#0f172a"/>
+              <circle cx="43" cy="74" r="2.2" fill="#ffffff"/>
+              <circle cx="61" cy="74" r="2.2" fill="#ffffff"/>
+              <ellipse cx="33" cy="84" rx="3.5" ry="2" fill="#f43f5e" opacity="0.35"/>
+              <ellipse cx="67" cy="84" rx="3.5" ry="2" fill="#f43f5e" opacity="0.35"/>
+              <path d="M43 85 Q50 93 57 85" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+              <path d="M27 88 Q16 80 18 72" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+              <path d="M73 88 Q84 84 82 92" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+              <defs>
+                <linearGradient id="ob-blade-grad" x1="50" y1="10" x2="50" y2="122" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#34d399"/>
+                  <stop offset="60%" stop-color="#10b981"/>
+                  <stop offset="100%" stop-color="#059669"/>
+                </linearGradient>
+              </defs>
+            </svg>
+
+            <!-- Speech Bubble -->
+            <div class="speech-bubble flex-1">
+              <p id="ob-mascot-speech" class="text-xs text-slate-700 leading-relaxed font-medium">
+                G'day! I'm <strong>Blade</strong>, your pocket lawn pal! 🌱 Before we dive in, let's have a quick chat about your lawn so I can help you achieve all your green dreams!
+              </p>
+            </div>
+          </div>
+
+          <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2">
             <div id="ob-progress-bar" class="bg-emerald-600 h-full w-1/5 transition-all duration-300"></div>
           </div>
         </div>
 
         <!-- STEP 1: PATHWAY SELECTION -->
         <div id="ob-step-1" class="space-y-3 py-1">
-          <div class="text-center space-y-1">
-            <h4 class="font-bold text-slate-900 text-base">Where are you at with your lawn?</h4>
-            <p class="text-xs text-slate-500">Pick the path that best matches your turf today</p>
-          </div>
           <div class="space-y-2.5 pt-1">
             <div onclick="App.setPathway('existing')" data-pathway="existing" class="pathway-card p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/80 cursor-pointer transition-all">
               <div class="flex items-center gap-3">
@@ -780,20 +845,18 @@
 
         <!-- STEP 5: CONSULTATION DIAGNOSIS & STARTER KIT -->
         <div id="ob-step-5" class="space-y-3 py-1 hidden">
-          <!-- Diagnosis injected here -->
           <div id="ob-diagnosis-container"></div>
 
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Agronomist Starter Recommendations</label>
+              <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Blade's Recommended Gear</label>
               <span class="text-[10px] text-emerald-700 font-semibold">lawntips.com</span>
             </div>
-            <!-- Product links injected here -->
             <div id="ob-recommended-products" class="space-y-2"></div>
           </div>
         </div>
 
-        <!-- Footer Buttons -->
+        <!-- Footer Navigation Buttons -->
         <div class="flex items-center justify-between pt-2 border-t border-slate-100">
           <button id="ob-back-btn" onclick="App.prevOnboardingStep()" class="text-xs text-slate-500 hover:text-slate-800 font-semibold invisible px-2 py-2">
             ← Back
@@ -839,7 +902,7 @@
 
         <!-- Diagnostic verdict -->
         <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs space-y-1.5">
-          <span class="font-bold text-slate-800 block">Agronomist Diagnosis:</span>
+          <span class="font-bold text-slate-800 block">Blade's Diagnosis:</span>
           <p id="modal-verdict" class="text-slate-600 leading-relaxed"></p>
         </div>
 
