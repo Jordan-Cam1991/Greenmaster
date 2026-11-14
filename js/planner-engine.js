@@ -7,60 +7,108 @@
  * 4. One Quarter (3 Months)
  * 5. Half Year (6 Months)
  * 6. One Year (12 Months)
+ *
+ * Integrates comprehensive onboarding history (last mow, last fertilise,
+ * pre-emergent status, mower type, and product recommendations).
  */
 const PlannerEngine = {
   generateDynamicPlan({ cvMetrics, weedLevel, weeds, diseaseOrStress, profile }) {
     const tier = profile.tier || 'semi_pro';
     const grass = profile.grassType || 'Bermuda / Couch';
     const hoc = Number(profile.hoc) || 15;
-    const hasReel = profile.equipment.some(e => e.toLowerCase().includes('reel') || e.toLowerCase().includes('cylinder'));
-    const hasSprayer = profile.equipment.some(e => e.toLowerCase().includes('sprayer'));
-    const hasDethatcher = profile.equipment.some(e => e.toLowerCase().includes('dethatch') || e.toLowerCase().includes('scarifi'));
-    const hasAerator = profile.equipment.some(e => e.toLowerCase().includes('aera'));
+    const history = profile.history || {};
+    const equipment = profile.equipment || [];
+    const fertilisers = profile.fertilisers || [];
+    const herbicides = profile.herbicides || [];
+
+    const hasReel = equipment.some(e => e.toLowerCase().includes('reel') || e.toLowerCase().includes('cylinder'));
+    const hasSprayer = equipment.some(e => e.toLowerCase().includes('sprayer'));
+    const hasDethatcher = equipment.some(e => e.toLowerCase().includes('dethatch') || e.toLowerCase().includes('scarifi'));
+    const hasAerator = equipment.some(e => e.toLowerCase().includes('aera'));
     const hasPgr = profile.specialTreatments?.some(t => t.toLowerCase().includes('pgr') || t.toLowerCase().includes('primo'));
+    const hasPreEmergent = herbicides.some(h => h.toLowerCase().includes('prodiamine') || h.toLowerCase().includes('barricade') || h.toLowerCase().includes('pre-emergent'));
+    const hasWettingAgent = profile.specialTreatments?.some(t => t.toLowerCase().includes('wetting') || t.toLowerCase().includes('surfactant'));
+    const hasFertiliser = fertilisers.length > 0;
 
     // 1. ONE WEEK (Immediate 7-Day Actions)
     const oneWeek = [];
-    if (tier === 'full_pro') {
+
+    // Check if new to lawn care & missing essentials -> suggest purchasing starter pack
+    if (!hasFertiliser) {
       oneWeek.push({
-        id: 'w1_mow_1',
-        task: hasReel ? `Cylinder mow at ${hoc}mm (Pattern 1)` : `Mow at ${hoc}mm with sharp blade`,
+        id: 'w1_shop_fert',
+        task: '🛒 Procure Essential Lawn Nutrition Kit',
         urgency: 'Critical',
-        category: 'Mowing',
-        tip: 'Mow early in the morning once dew dries. Empty catcher to maintain uniform surface roll.'
+        category: 'Fertiliser',
+        tip: 'You indicated you do not have fertilisers yet. Visit lawntips.com to get a balanced slow-release granular or foliar starter pack (e.g. Lawn Tips Growth / Foliar Duo).'
       });
+    }
+
+    // Pre-emergent urgent check from consultation
+    if (history.preEmergentStatus === 'none' || history.preEmergentStatus === 'over_6m') {
       oneWeek.push({
-        id: 'w1_mow_2',
-        task: hasReel ? `Cross-cut cylinder mow at 90° angle` : `Mid-week clean-up mow`,
+        id: 'w1_urgent_pre_emergent',
+        task: hasPreEmergent ? 'Apply Pre-Emergent barrier (Prodiamine / Spartan)' : '🛒 Order & Apply Pre-Emergent Barrier',
+        urgency: 'Critical',
+        category: 'Protection',
+        tip: hasPreEmergent 
+          ? 'Consultation indicates your lawn has no active weed barrier. Apply immediately and water in with 12mm to seal the soil.' 
+          : 'Crucial: Get Prodiamine / Barricade from lawntips.com to block weed seeds before germination season.'
+      });
+    }
+
+    // Mowing plan based on mower type and last mow
+    const lastMowDays = Number(history.lastMowDays) || 3;
+    if (lastMowDays >= 10) {
+      oneWeek.push({
+        id: 'w1_step_down_mow',
+        task: `Gradual Step-Down Mow (Do not scalp)`,
         urgency: 'High',
         category: 'Mowing',
-        tip: 'Promotes tight lateral rhizome/stolon tillering for carpet-like density.'
-      });
-      if (hasPgr) {
-        oneWeek.push({
-          id: 'w1_pgr',
-          task: 'Primo Maxx (PGR) check & GDD calculation',
-          urgency: 'Medium',
-          category: 'Chemical',
-          tip: 'Apply at 200 Growing Degree Days to suppress vertical surge and double root density.'
-        });
-      }
-    } else if (tier === 'semi_pro') {
-      oneWeek.push({
-        id: 'w1_mow',
-        task: `Mow at ${hoc}mm with rear roller striping`,
-        urgency: 'High',
-        category: 'Mowing',
-        tip: 'Keep cut height consistent. Never cut more than 1/3 of the blade length in one pass.'
+        tip: `Since your last cut was ${lastMowDays} days ago, cut high first. Wait 3 days, then bring down to target ${hoc}mm adhering strictly to the 1/3rd rule.`
       });
     } else {
-      oneWeek.push({
-        id: 'w1_mow_low',
-        task: `Rotary mow at ${hoc}mm`,
-        urgency: 'Medium',
-        category: 'Mowing',
-        tip: 'Check that blade is sharp to prevent frayed brown tips.'
-      });
+      if (tier === 'full_pro') {
+        oneWeek.push({
+          id: 'w1_mow_1',
+          task: hasReel ? `Cylinder mow at ${hoc}mm (Pattern 1)` : `Mow at ${hoc}mm with sharp blade`,
+          urgency: 'Critical',
+          category: 'Mowing',
+          tip: 'Mow early in the morning once dew dries. Empty catcher to maintain uniform surface roll.'
+        });
+        oneWeek.push({
+          id: 'w1_mow_2',
+          task: hasReel ? `Cross-cut cylinder mow at 90° angle` : `Mid-week clean-up mow`,
+          urgency: 'High',
+          category: 'Mowing',
+          tip: 'Promotes tight lateral rhizome/stolon tillering for carpet-like bowling green density.'
+        });
+        if (hasPgr) {
+          oneWeek.push({
+            id: 'w1_pgr',
+            task: 'Primo Maxx (PGR) check & GDD calculation',
+            urgency: 'Medium',
+            category: 'Chemical',
+            tip: 'Apply at 200 Growing Degree Days to suppress vertical surge and double root density.'
+          });
+        }
+      } else if (tier === 'semi_pro') {
+        oneWeek.push({
+          id: 'w1_mow',
+          task: `Mow at ${hoc}mm with rear roller striping`,
+          urgency: 'High',
+          category: 'Mowing',
+          tip: 'Keep cut height consistent. Never cut more than 1/3 of the blade length in one pass.'
+        });
+      } else {
+        oneWeek.push({
+          id: 'w1_mow_low',
+          task: `Rotary mow at ${hoc}mm`,
+          urgency: 'Medium',
+          category: 'Mowing',
+          tip: 'Check that blade is sharp to prevent frayed brown tips.'
+        });
+      }
     }
 
     // Irrigation check for week 1
@@ -78,7 +126,7 @@ const PlannerEngine = {
         task: `Irrigation cycle (${profile.wateringFreq})`,
         urgency: 'Medium',
         category: 'Watering',
-        tip: 'Infrequent deep soaks encourage roots to dig deep into the subsoil profile.'
+        tip: 'Infrequent deep dawn soaks encourage roots to dig deep into the subsoil profile.'
       });
     }
 
@@ -89,61 +137,74 @@ const PlannerEngine = {
         task: `Spot spray detected weeds (${weeds.slice(0, 2).join(', ')})`,
         urgency: 'High',
         category: 'Weed Control',
-        tip: 'Use selective broadleaf herbicide. Spray in calm wind conditions during mild temperatures.'
+        tip: 'Use selective broadleaf herbicide (Bow & Arrow / Dicamba). Spray during calm, cool morning conditions.'
       });
     }
 
     // 2. TWO WEEKS (Short-term 14-Day Horizon)
     const twoWeeks = [];
-    if (tier === 'full_pro') {
+    const lastFertDays = Number(history.lastFertDays) || 30;
+
+    if (lastFertDays < 14) {
       twoWeeks.push({
-        id: 'w2_foliar',
-        task: 'Liquid foliar spoon-feed (N-P-K + Chelated Iron + Kelp)',
-        urgency: 'High',
-        category: 'Fertiliser',
-        tip: 'Spoon feeding prevents growth surges while unlocking an unmistakable tournament dark emerald pop.'
-      });
-      twoWeeks.push({
-        id: 'w2_groom',
-        task: 'Verti-cut / light grooming reel pass',
-        urgency: 'Medium',
-        category: 'Renovation',
-        tip: 'Slices horizontal grain and lifts recumbent runners before cylinder cut.'
-      });
-    } else if (tier === 'semi_pro') {
-      twoWeeks.push({
-        id: 'w2_feed',
-        task: hasSprayer ? 'Foliar liquid feed with Iron & Nitrogen' : 'Light granular fertiliser application',
-        urgency: 'Medium',
-        category: 'Fertiliser',
-        tip: 'Apply evenly. Water in thoroughly within 24 hours to prevent leaf scorch.'
-      });
-      twoWeeks.push({
-        id: 'w2_edge',
-        task: 'Edge trimming & trench crisping',
+        id: 'w2_feed_resting',
+        task: 'Soil Hydration & Microbial Soak (Skip Heavy Nitrogen)',
         urgency: 'Low',
-        category: 'Detailing',
-        tip: 'Crisp 90-degree edge around driveways and garden beds amplifies visual contrast.'
+        category: 'Soil',
+        tip: `Your last fertiliser application was ${lastFertDays} days ago and is still active. Let roots absorb nutrients without risk of salt burn.`
       });
     } else {
-      twoWeeks.push({
-        id: 'w2_feed_low',
-        task: 'Apply slow-release lawn food (1 application per 8 weeks)',
-        urgency: 'Low',
-        category: 'Fertiliser',
-        tip: 'Broadcast granular feed evenly across the yard and water in.'
-      });
+      if (tier === 'full_pro') {
+        twoWeeks.push({
+          id: 'w2_foliar',
+          task: 'Liquid foliar spoon-feed (N-P-K + Chelated Iron + Kelp)',
+          urgency: 'High',
+          category: 'Fertiliser',
+          tip: 'Spoon feeding prevents growth surges while unlocking an unmistakable tournament dark emerald pop.'
+        });
+        twoWeeks.push({
+          id: 'w2_groom',
+          task: 'Verti-cut / light grooming reel pass',
+          urgency: 'Medium',
+          category: 'Renovation',
+          tip: 'Slices horizontal grain and lifts recumbent runners before cylinder cut.'
+        });
+      } else if (tier === 'semi_pro') {
+        twoWeeks.push({
+          id: 'w2_feed',
+          task: hasSprayer ? 'Foliar liquid feed with Iron & Nitrogen' : 'Light granular fertiliser application',
+          urgency: 'Medium',
+          category: 'Fertiliser',
+          tip: 'Apply evenly. Water in thoroughly within 24 hours to prevent leaf scorch.'
+        });
+        twoWeeks.push({
+          id: 'w2_edge',
+          task: 'Edge trimming & trench crisping',
+          urgency: 'Low',
+          category: 'Detailing',
+          tip: 'Crisp 90-degree edge around driveways and garden beds amplifies visual contrast.'
+        });
+      } else {
+        twoWeeks.push({
+          id: 'w2_feed_low',
+          task: 'Apply slow-release lawn food (1 application per 8 weeks)',
+          urgency: 'Low',
+          category: 'Fertiliser',
+          tip: 'Broadcast granular feed evenly across the yard and water in.'
+        });
+      }
     }
 
     // 3. ONE MONTH (30-Day Milestone)
     const oneMonth = [];
     oneMonth.push({
       id: 'm1_wetting',
-      task: 'Tournament-grade soil surfactant (Wetting Agent)',
+      task: hasWettingAgent ? 'Apply Tournament-Grade Soil Wetting Agent' : '🛒 Get & Apply Wetting Agent (Hydra-Flo / Tournament)',
       urgency: 'High',
       category: 'Soil',
-      tip: 'Breaks water surface tension, prevents hydrophobic soil dry patches, and cuts water waste by 30%.'
+      tip: 'Breaks water surface tension, prevents hydrophobic dry spots, and cuts water waste by 30%. (Available at lawntips.com).'
     });
+
     if (tier === 'full_pro' || tier === 'semi_pro') {
       oneMonth.push({
         id: 'm1_biostimulant',
@@ -157,7 +218,7 @@ const PlannerEngine = {
         task: hasReel ? 'Cylinder mower backlapping with 120-grit compound' : 'Rotary blade sharpening & balancing',
         urgency: 'Medium',
         category: 'Equipment',
-        tip: 'A clean surgical cut prevents disease pathogens and leaves crisp, glossy leaf tips.'
+        tip: 'A surgical clean cut prevents disease pathogens and leaves glossy, diamond-sharp leaf tips.'
       });
     } else {
       oneMonth.push({
@@ -173,10 +234,10 @@ const PlannerEngine = {
     const oneQuarter = [];
     oneQuarter.push({
       id: 'q1_pre_emergent',
-      task: 'Pre-Emergent herbicide barrier (Prodiamine / Barricade)',
+      task: 'Pre-Emergent booster barrier (Prodiamine / Barricade)',
       urgency: 'Critical',
       category: 'Protection',
-      tip: 'The turf nerd secret weapon: stops weed seeds from germinating before they ever break soil.'
+      tip: 'Maintains the chemical barrier in top 10mm of soil to block next seasonal weed flush.'
     });
     if (tier === 'full_pro') {
       oneQuarter.push({
@@ -234,7 +295,7 @@ const PlannerEngine = {
       task: 'Catch-cup sprinkler audit & uniformity test',
       urgency: 'Medium',
       category: 'Watering',
-      tip: 'Place tuna cans or catch-cups to measure exact precipitation rate (mm/inch per hour).'
+      tip: 'Place catch-cups to measure exact precipitation rate (mm per hour) across zones.'
     });
 
     // 6. ONE YEAR (12 Months / Annual Master Reset & Budget)
@@ -251,7 +312,7 @@ const PlannerEngine = {
       task: 'Comprehensive Lab Soil Test (NPK, pH, Micronutrients, CEC)',
       urgency: 'High',
       category: 'Soil',
-      tip: 'Eliminates guesswork. Calibrates your annual Nitrogen budget (lbs/1000 sq ft or g/m²).'
+      tip: 'Eliminates guesswork. Calibrates your annual Nitrogen budget (g/m²).'
     });
     oneYear.push({
       id: 'y1_full_equipment_service',

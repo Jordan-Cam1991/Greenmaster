@@ -192,9 +192,9 @@
             <i data-lucide="camera" class="w-4 h-4"></i>
             <span>Take Weekly Photo</span>
           </button>
-          <button onclick="App.switchTab('planner')" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all btn-press flex items-center gap-1">
-            <i data-lucide="calendar" class="w-4 h-4"></i>
-            <span>View Plan</span>
+          <button onclick="App.showOnboarding(true)" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all btn-press flex items-center gap-1">
+            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+            <span>Consultation</span>
           </button>
         </div>
       </div>
@@ -485,8 +485,9 @@
           Save Profile & Recalculate Plan
         </button>
 
-        <button type="button" onclick="App.showOnboarding(true)" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs rounded-xl transition-all">
-          Replay Onboarding Tour
+        <button type="button" onclick="App.showOnboarding(true)" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-1.5 btn-press">
+          <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+          <span>Re-run Full Lawn Consultation</span>
         </button>
       </form>
     </main>
@@ -575,72 +576,233 @@
       </div>
     </nav>
 
-    <!-- ONBOARDING WIZARD MODAL -->
+    <!-- COMPREHENSIVE ONBOARDING & CONSULTATION WIZARD MODAL -->
     <div id="onboarding-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-      <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-        <div class="text-center space-y-1">
-          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2 shadow-inner">
-            <i data-lucide="sparkles" class="w-6 h-6"></i>
+      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col justify-between overflow-y-auto no-scrollbar">
+        
+        <!-- Header & Progress bar -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+              </div>
+              <h3 id="ob-step-title" class="font-bold text-slate-900 text-sm">Lawn Consultation</h3>
+            </div>
+            <button onclick="App.showOnboarding(false)" class="text-xs text-slate-400 hover:text-slate-600">✕ Close</button>
           </div>
-          <h2 class="text-lg font-bold text-slate-900">Welcome to GreenMaster AI</h2>
-          <p class="text-xs text-slate-500">Let's dial in your target lawn standard in 3 quick questions</p>
+          <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+            <div id="ob-progress-bar" class="bg-emerald-600 h-full w-1/5 transition-all duration-300"></div>
+          </div>
         </div>
 
-        <div class="space-y-3 pt-2">
-          <!-- Step 1: Tier Selection -->
-          <div class="space-y-1.5">
-            <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">1. Target Approach</label>
+        <!-- STEP 1: PATHWAY SELECTION -->
+        <div id="ob-step-1" class="space-y-3 py-1">
+          <div class="text-center space-y-1">
+            <h4 class="font-bold text-slate-900 text-base">Where are you at with your lawn?</h4>
+            <p class="text-xs text-slate-500">Pick the path that best matches your turf today</p>
+          </div>
+          <div class="space-y-2.5 pt-1">
+            <div onclick="App.setPathway('existing')" data-pathway="existing" class="pathway-card p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/80 cursor-pointer transition-all">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+                  <i data-lucide="check-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <strong class="text-slate-900 text-xs block">I'm actively maintaining my lawn</strong>
+                  <span class="text-[11px] text-slate-500">I have equipment and want AI to optimize my cutting, feeding & pre-emergent plan.</span>
+                </div>
+              </div>
+            </div>
+
+            <div onclick="App.setPathway('fresh')" data-pathway="fresh" class="pathway-card p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50 hover:bg-emerald-50/40 cursor-pointer transition-all">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0">
+                  <i data-lucide="help-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <strong class="text-slate-900 text-xs block">Starting fresh or need a rescue plan</strong>
+                  <span class="text-[11px] text-slate-500">New turf or struggling lawn. Tell me what products to buy and step-by-step actions.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: TARGET STANDARD & GRASS -->
+        <div id="ob-step-2" class="space-y-3 py-1 hidden">
+          <div>
+            <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Target Quality Standard</label>
             <div class="space-y-1.5">
-              <label class="flex items-center gap-2.5 p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 cursor-pointer text-xs">
+              <label class="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer text-xs">
                 <input type="radio" name="ob-tier" value="low_maintenance" class="text-emerald-600">
                 <div>
                   <strong class="text-slate-800 block">Weekend Warrior</strong>
-                  <span class="text-[10px] text-slate-400">Low maintenance, monthly mowing</span>
+                  <span class="text-[10px] text-slate-400">Monthly rotary mow, low input</span>
                 </div>
               </label>
-              <label class="flex items-center gap-2.5 p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 cursor-pointer text-xs">
+              <label class="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer text-xs">
                 <input type="radio" name="ob-tier" value="semi_pro" class="text-emerald-600">
                 <div>
-                  <strong class="text-slate-800 block">Lawn Enthusiast</strong>
-                  <span class="text-[10px] text-slate-400">Striping pride & regular feeding</span>
+                  <strong class="text-slate-800 block">Lawn Enthusiast (Semi-Pro)</strong>
+                  <span class="text-[10px] text-slate-400">Crisp striping, liquid feed, tight turf</span>
                 </div>
               </label>
-              <label class="flex items-center gap-2.5 p-2.5 rounded-2xl border border-emerald-300 bg-emerald-50/60 cursor-pointer text-xs">
+              <label class="flex items-center gap-2.5 p-2 rounded-xl border border-emerald-300 bg-emerald-50/60 cursor-pointer text-xs">
                 <input type="radio" name="ob-tier" value="full_pro" checked class="text-emerald-600">
                 <div>
-                  <strong class="text-emerald-950 block">Golf / Bowling Green Pro</strong>
-                  <span class="text-[10px] text-emerald-700">Sub-15mm reel cut, tournament quality</span>
+                  <strong class="text-emerald-950 block">Golf Course / Bowling Green Pro</strong>
+                  <span class="text-[10px] text-emerald-700">Sub-15mm cylinder reel cut, tournament level</span>
                 </div>
               </label>
             </div>
           </div>
 
-          <!-- Step 2: Grass Type -->
-          <div>
-            <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">2. Grass Variety</label>
-            <select id="ob-grass-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800">
-              <option value="Bermuda / Couch">Bermuda / Couch (TifTuf, Santa Ana)</option>
-              <option value="Buffalo / St Augustine">Buffalo / St Augustine (Sir Walter)</option>
-              <option value="Zoysia">Zoysia (Empire, Sir Grange)</option>
-              <option value="Kikuyu">Kikuyu</option>
-              <option value="Kentucky Bluegrass">Kentucky Bluegrass (KBG)</option>
-              <option value="Tall Fescue">Tall Fescue</option>
-            </select>
-          </div>
-
-          <!-- Step 3: Target HOC -->
-          <div>
-            <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">3. Target Cut Height (HOC)</label>
-            <div class="flex items-center gap-2">
-              <input type="number" id="ob-hoc" value="12" min="5" max="60" class="w-24 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800">
-              <span class="text-xs text-slate-500 font-medium">mm (e.g. 10-15mm for reel cut)</span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Grass Variety</label>
+              <select id="ob-grass-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800">
+                <option value="Bermuda / Couch">Bermuda / Couch</option>
+                <option value="Buffalo / St Augustine">Buffalo / Sir Walter</option>
+                <option value="Zoysia">Zoysia</option>
+                <option value="Kikuyu">Kikuyu</option>
+                <option value="Kentucky Bluegrass">Kentucky Bluegrass</option>
+                <option value="Tall Fescue">Tall Fescue</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Target HOC</label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="ob-hoc" value="12" min="5" max="70" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800">
+                <span class="text-xs text-slate-400">mm</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <button onclick="App.finishOnboarding()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-600/25 transition-all btn-press">
-          Launch My Lawn Care Plan →
-        </button>
+        <!-- STEP 3: MOWER & EQUIPMENT AUDIT -->
+        <div id="ob-step-3" class="space-y-3 py-1 hidden">
+          <div>
+            <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Primary Mower Type</label>
+            <select id="ob-mower-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-medium">
+              <option value="Cylinder / Reel Mower">Cylinder / Reel Mower (Scott Bonnar, Allett, Cylinder)</option>
+              <option value="Rotary Mower with Roller">Rotary Mower with Rear Roller (Striping)</option>
+              <option value="Standard Rotary Mower">Standard 4-stroke / Electric Rotary Mower</option>
+              <option value="Robot Mower">Automated Robotic Mower</option>
+              <option value="None / Looking to Buy">None yet (Need mower recommendation)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Other Equipment Owned</label>
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <label class="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                <input type="checkbox" id="ob-eq-reel" checked class="text-emerald-600 rounded">
+                <span>Cylinder Reel</span>
+              </label>
+              <label class="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                <input type="checkbox" id="ob-eq-sprayer" checked class="text-emerald-600 rounded">
+                <span>Backpack Sprayer</span>
+              </label>
+              <label class="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                <input type="checkbox" id="ob-eq-spreader" checked class="text-emerald-600 rounded">
+                <span>Rotary Spreader</span>
+              </label>
+              <label class="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                <input type="checkbox" id="ob-eq-scarifier" class="text-emerald-600 rounded">
+                <span>Dethatcher</span>
+              </label>
+              <label class="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                <input type="checkbox" id="ob-eq-aerator" class="text-emerald-600 rounded">
+                <span>Coring Aerator</span>
+              </label>
+              <label class="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                <input type="checkbox" id="ob-eq-rotary" class="text-emerald-600 rounded">
+                <span>Rotary Mower</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: RECENT MAINTENANCE HISTORY -->
+        <div id="ob-step-4" class="space-y-3 py-1 hidden">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">When was Last Mow?</label>
+              <select id="ob-last-mow" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800">
+                <option value="0">Today</option>
+                <option value="2">2-3 days ago</option>
+                <option value="7">1 week ago</option>
+                <option value="14">2+ weeks ago</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Last Fertilised?</label>
+              <select id="ob-last-fert" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800">
+                <option value="5">Within 7 days</option>
+                <option value="14" selected>2 weeks ago</option>
+                <option value="30">1 month ago</option>
+                <option value="90">Over 2-3 months</option>
+                <option value="365">Never / Long ago</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Fertiliser Type Last Used</label>
+            <select id="ob-fert-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800">
+              <option value="Liquid Foliar">Liquid Foliar (Sprayed on leaf)</option>
+              <option value="Slow-Release Granular">Slow-Release Granular (Broadcast)</option>
+              <option value="Organic Pellet / Compost">Organic Pellet / Dynamic Lifter</option>
+              <option value="none">Haven't applied anything</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Pre-Emergent Weed Barrier Status</label>
+            <select id="ob-pre-emergent" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800">
+              <option value="none" selected>Never applied / Not active</option>
+              <option value="active">Active (Applied in last 3 months)</option>
+              <option value="over_6m">Expired (Applied > 5 months ago)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Last Renovation (Scalp / Dethatch)</label>
+            <select id="ob-renovation" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800">
+              <option value="this_spring">This active growing season</option>
+              <option value="last_year" selected>Last spring / year</option>
+              <option value="never">Never renovated</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- STEP 5: CONSULTATION DIAGNOSIS & STARTER KIT -->
+        <div id="ob-step-5" class="space-y-3 py-1 hidden">
+          <!-- Diagnosis injected here -->
+          <div id="ob-diagnosis-container"></div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Agronomist Starter Recommendations</label>
+              <span class="text-[10px] text-emerald-700 font-semibold">lawntips.com</span>
+            </div>
+            <!-- Product links injected here -->
+            <div id="ob-recommended-products" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+          <button id="ob-back-btn" onclick="App.prevOnboardingStep()" class="text-xs text-slate-500 hover:text-slate-800 font-semibold invisible px-2 py-2">
+            ← Back
+          </button>
+          <button id="ob-next-btn" onclick="App.nextOnboardingStep()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/25 transition-all btn-press">
+            Continue →
+          </button>
+        </div>
+
       </div>
     </div>
 

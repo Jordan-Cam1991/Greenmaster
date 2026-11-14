@@ -1,5 +1,6 @@
 /**
  * Main Application Controller for GreenMaster AI
+ * Includes Comprehensive Lawn Consultation Wizard & Dynamic Agronomy Engine.
  */
 const App = {
   activeTab: 'dashboard',
@@ -9,11 +10,32 @@ const App = {
   weather: null,
   isScanning: false,
 
+  // Onboarding wizard state
+  onboardingStep: 1,
+  totalOnboardingSteps: 5,
+  consultationData: {
+    pathway: 'existing', // 'existing' or 'fresh'
+    tier: 'full_pro',
+    grassType: 'Bermuda / Couch',
+    hoc: 12,
+    mowerType: 'Cylinder / Reel Mower',
+    equipment: ['Cylinder / Reel Mower', 'Battery Backpack Sprayer'],
+    lastMowDays: 3,
+    lastFertType: 'Liquid Foliar',
+    lastFertDays: 14,
+    preEmergentStatus: 'none',
+    lastRenovation: 'last_year',
+    sprinklers: 'In-Ground MP Rotators',
+    wateringFreq: '2 times/week',
+    fertilisersOwned: ['Liquid Foliar Nitrogen & Iron'],
+    herbicidesOwned: []
+  },
+
   async init() {
     this.profile = StorageManager.getProfile();
     this.currentPlan = StorageManager.getActivePlan();
 
-    // If no plan exists yet, generate initial baseline plan
+    // If no plan exists yet, generate baseline plan
     if (!this.currentPlan) {
       const initialMetrics = {
         densityPercent: 84,
@@ -52,7 +74,7 @@ const App = {
       this.showOnboarding(true);
     }
 
-    // Load live weather asynchronously
+    // Load live weather
     this.fetchWeather();
   },
 
@@ -252,7 +274,7 @@ const App = {
 
     if (nextPendingTask) {
       if (nextActionEl) nextActionEl.innerText = nextPendingTask.task;
-      if (nextActionSubEl) nextActionSubEl.innerText = nextPendingTask.tip ? `Tip: ${nextPendingTask.tip.slice(0, 70)}...` : 'Next on your weekly schedule';
+      if (nextActionSubEl) nextActionSubEl.innerText = nextPendingTask.tip ? `Tip: ${nextPendingTask.tip.slice(0, 80)}...` : 'Next on your weekly schedule';
       if (nextActionCatEl) nextActionCatEl.innerText = `${nextPendingTask.category} • ${nextPendingTask.urgency} Urgency`;
     }
 
@@ -299,7 +321,6 @@ const App = {
       }
     }
 
-    // Full weather view details
     const weatherSummaryEl = document.getElementById('weather-summary-text');
     if (weatherSummaryEl) {
       weatherSummaryEl.innerText = this.weather.rainVerdict;
@@ -400,6 +421,9 @@ const App = {
       const isDone = !!completedTasks[taskId];
       if (isDone) completedCount++;
 
+      // Check if task contains a shopping link to lawntips.com
+      const hasShopLink = task.tip && task.tip.includes('lawntips.com');
+
       return `
         <div class="p-4 rounded-2xl border transition-all ${isDone ? 'bg-slate-50/70 border-slate-200 opacity-60' : 'bg-white border-slate-200 shadow-sm hover:border-emerald-300'}">
           <div class="flex items-start gap-3">
@@ -414,8 +438,14 @@ const App = {
                 </span>
               </div>
               ${task.tip ? `
-                <p class="text-xs text-slate-500 mt-1.5 leading-relaxed bg-slate-50 p-2 rounded-lg border border-slate-100">
-                  <span class="font-medium text-emerald-700">Agronomist Tip:</span> ${task.tip}
+                <p class="text-xs text-slate-500 mt-1.5 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span class="font-semibold text-emerald-700">Agronomist Recommendation:</span> ${task.tip}
+                  ${hasShopLink ? `
+                    <a href="https://lawntips.com" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline bg-emerald-100/60 px-2 py-1 rounded-md">
+                      <span>Explore on lawntips.com</span>
+                      <i data-lucide="external-link" class="w-3 h-3"></i>
+                    </a>
+                  ` : ''}
                 </p>
               ` : ''}
               <div class="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
@@ -433,6 +463,10 @@ const App = {
     const percent = Math.round((completedCount / tasks.length) * 100);
     if (progressEl) progressEl.style.width = `${percent}%`;
     if (progressText) progressText.innerText = `${completedCount} of ${tasks.length} Completed (${percent}%)`;
+
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
   },
 
   handleTaskToggle(taskId) {
@@ -478,10 +512,9 @@ const App = {
       };
       StorageManager.saveActivePlan(this.currentPlan);
 
-      // Save slim scan history (NO raw image blobs are stored, saving user data/privacy!)
+      // Save slim scan record
       StorageManager.addScanRecord(result);
 
-      // Finish scanning
       setTimeout(() => {
         this.isScanning = false;
         this.showScanningUI(false);
@@ -544,22 +577,215 @@ const App = {
     this.switchTab('planner');
   },
 
+  /* ------------------- ONBOARDING & CONSULTATION WIZARD ------------------- */
+
   showOnboarding(show = true) {
     const modal = document.getElementById('onboarding-modal');
     if (modal) {
       modal.classList.toggle('hidden', !show);
+      if (show) {
+        this.onboardingStep = 1;
+        this.renderOnboardingStep();
+      }
     }
   },
 
-  finishOnboarding() {
-    // Read selections from onboarding
-    const tier = document.querySelector('input[name="ob-tier"]:checked')?.value || 'semi_pro';
-    const grass = document.getElementById('ob-grass-type')?.value || 'Bermuda / Couch';
-    const hoc = Number(document.getElementById('ob-hoc')?.value || 15);
+  setPathway(pathway) {
+    this.consultationData.pathway = pathway;
+    document.querySelectorAll('.pathway-card').forEach(c => {
+      c.classList.toggle('border-emerald-500', c.getAttribute('data-pathway') === pathway);
+      c.classList.toggle('bg-emerald-50/80', c.getAttribute('data-pathway') === pathway);
+    });
+  },
 
-    this.profile.tier = tier;
-    this.profile.grassType = grass;
-    this.profile.hoc = hoc;
+  nextOnboardingStep() {
+    // Collect data from current step
+    this.harvestStepData();
+
+    if (this.onboardingStep < this.totalOnboardingSteps) {
+      this.onboardingStep++;
+      this.renderOnboardingStep();
+    } else {
+      this.finishConsultation();
+    }
+  },
+
+  prevOnboardingStep() {
+    if (this.onboardingStep > 1) {
+      this.onboardingStep--;
+      this.renderOnboardingStep();
+    }
+  },
+
+  renderOnboardingStep() {
+    for (let i = 1; i <= this.totalOnboardingSteps; i++) {
+      const stepEl = document.getElementById(`ob-step-${i}`);
+      if (stepEl) {
+        stepEl.classList.toggle('hidden', i !== this.onboardingStep);
+      }
+    }
+
+    // Step indicator & progress
+    const titleEl = document.getElementById('ob-step-title');
+    const progressEl = document.getElementById('ob-progress-bar');
+    const backBtn = document.getElementById('ob-back-btn');
+    const nextBtn = document.getElementById('ob-next-btn');
+
+    if (progressEl) {
+      const pct = Math.round((this.onboardingStep / this.totalOnboardingSteps) * 100);
+      progressEl.style.width = `${pct}%`;
+    }
+
+    if (backBtn) {
+      backBtn.classList.toggle('invisible', this.onboardingStep === 1);
+    }
+
+    if (nextBtn) {
+      nextBtn.innerText = this.onboardingStep === this.totalOnboardingSteps ? 'Generate Master Plan →' : 'Continue →';
+    }
+
+    const titles = [
+      'Lawn Profile & Pathway',
+      'Target Standard & Grass Type',
+      'Mower & Equipment Audit',
+      'Recent Maintenance History',
+      'AI Agronomy Consultation & Starter Kit'
+    ];
+    if (titleEl) titleEl.innerText = titles[this.onboardingStep - 1] || 'Consultation';
+
+    // If final consultation step, render diagnosis & recommendations
+    if (this.onboardingStep === 5) {
+      this.renderConsultationSummary();
+    }
+
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
+  },
+
+  harvestStepData() {
+    const step = this.onboardingStep;
+    if (step === 2) {
+      this.consultationData.tier = document.querySelector('input[name="ob-tier"]:checked')?.value || 'semi_pro';
+      this.consultationData.grassType = document.getElementById('ob-grass-type')?.value || 'Bermuda / Couch';
+      this.consultationData.hoc = Number(document.getElementById('ob-hoc')?.value || 15);
+    } else if (step === 3) {
+      this.consultationData.mowerType = document.getElementById('ob-mower-type')?.value || 'Cylinder / Reel Mower';
+      const eq = [];
+      if (document.getElementById('ob-eq-reel')?.checked) eq.push('Cylinder / Reel Mower');
+      if (document.getElementById('ob-eq-rotary')?.checked) eq.push('Rotary Mower with Roller');
+      if (document.getElementById('ob-eq-sprayer')?.checked) eq.push('Battery Backpack Sprayer');
+      if (document.getElementById('ob-eq-spreader')?.checked) eq.push('Calibrated Rotary Spreader');
+      if (document.getElementById('ob-eq-scarifier')?.checked) eq.push('Dethatcher / Scarifier');
+      if (document.getElementById('ob-eq-aerator')?.checked) eq.push('Coring Aerator');
+      this.consultationData.equipment = eq;
+    } else if (step === 4) {
+      this.consultationData.lastMowDays = Number(document.getElementById('ob-last-mow')?.value || 3);
+      this.consultationData.lastFertDays = Number(document.getElementById('ob-last-fert')?.value || 30);
+      this.consultationData.lastFertType = document.getElementById('ob-fert-type')?.value || 'none';
+      this.consultationData.preEmergentStatus = document.getElementById('ob-pre-emergent')?.value || 'none';
+      this.consultationData.lastRenovation = document.getElementById('ob-renovation')?.value || 'never';
+    }
+  },
+
+  renderConsultationSummary() {
+    const d = this.consultationData;
+    const diagContainer = document.getElementById('ob-diagnosis-container');
+    const recProductsContainer = document.getElementById('ob-recommended-products');
+    if (!diagContainer) return;
+
+    // Build Agronomist Verdict
+    let diagnosisHTML = `
+      <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
+        <div class="font-bold flex items-center gap-1.5 text-emerald-900">
+          <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+          <span>Consultation Diagnosis:</span>
+        </div>
+        <p class="leading-relaxed">Targeting <strong>${d.tier === 'full_pro' ? 'Full Tournament / Bowling Green Standard' : d.tier === 'semi_pro' ? 'Semi-Pro Enthusiast' : 'Weekend Warrior'}</strong> with <strong>${d.grassType}</strong> at <strong>${d.hoc}mm</strong>.</p>
+        <div class="pt-1.5 border-t border-emerald-200/80 text-[11px] text-emerald-800 space-y-1">
+          <div>• Mower: <strong>${d.mowerType}</strong></div>
+          <div>• Last Cut: <strong>${d.lastMowDays === 0 ? 'Today' : d.lastMowDays + ' days ago'}</strong></div>
+          <div>• Pre-Emergent Barrier: <strong>${d.preEmergentStatus === 'active' ? 'Active' : 'Missing / Needs Application'}</strong></div>
+        </div>
+      </div>
+    `;
+    diagContainer.innerHTML = diagnosisHTML;
+
+    // Curated recommendations (e.g. Lawn Tips)
+    if (recProductsContainer) {
+      const recs = [];
+
+      // If pre-emergent missing
+      if (d.preEmergentStatus === 'none' || d.preEmergentStatus === 'over_6m') {
+        recs.push({
+          name: 'Prodiamine / Spartan Pre-Emergent',
+          why: 'Critical: Creates a chemical barrier in soil so summer weeds & crabgrass never sprout.',
+          source: 'Available at lawntips.com',
+          url: 'https://lawntips.com'
+        });
+      }
+
+      // If foliar equipment or full pro
+      if (d.tier === 'full_pro' || d.equipment.some(e => e.includes('Sprayer'))) {
+        recs.push({
+          name: 'Lawn Tips Foliar & Iron Nutrient Combo',
+          why: 'Delivers rapid dark emerald chlorophyll response without surging vertical growth.',
+          source: 'Available at lawntips.com',
+          url: 'https://lawntips.com'
+        });
+      }
+
+      // Wetting agent recommendation
+      recs.push({
+        name: 'Tournament-Grade Soil Wetting Agent (Hydra-Flo)',
+        why: 'Prevents dry hydrophobic soil patches and cuts sprinkler water demand by 30%.',
+        source: 'Available at lawntips.com',
+        url: 'https://lawntips.com'
+      });
+
+      recProductsContainer.innerHTML = recs.map(r => `
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between gap-3 text-xs">
+          <div class="space-y-0.5">
+            <strong class="text-slate-900 block">${r.name}</strong>
+            <p class="text-[11px] text-slate-500">${r.why}</p>
+            <span class="text-[10px] text-emerald-700 font-semibold block pt-0.5">${r.source}</span>
+          </div>
+          <a href="${r.url}" target="_blank" rel="noopener" class="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-50 text-emerald-800 border border-slate-200 rounded-xl text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+            <span>Shop</span>
+            <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
+        </div>
+      `).join('');
+    }
+  },
+
+  finishConsultation() {
+    this.harvestStepData();
+    const d = this.consultationData;
+
+    // Update Profile
+    this.profile.tier = d.tier;
+    this.profile.grassType = d.grassType;
+    this.profile.hoc = d.hoc;
+    this.profile.equipment = d.equipment;
+    this.profile.history = {
+      lastMowDays: d.lastMowDays,
+      lastFertDays: d.lastFertDays,
+      lastFertType: d.lastFertType,
+      preEmergentStatus: d.preEmergentStatus,
+      lastRenovation: d.lastRenovation
+    };
+
+    // Update initial logs
+    const initialLogs = StorageManager.getLogs();
+    const mowDate = new Date();
+    mowDate.setDate(mowDate.getDate() - d.lastMowDays);
+    initialLogs.lastMow = mowDate.toISOString();
+
+    const fertDate = new Date();
+    fertDate.setDate(fertDate.getDate() - d.lastFertDays);
+    initialLogs.lastFeed = fertDate.toISOString();
+    localStorage.setItem(StorageManager.KEYS.LOGS, JSON.stringify(initialLogs));
 
     StorageManager.saveProfile(this.profile);
     StorageManager.setOnboarded(true);
@@ -567,7 +793,7 @@ const App = {
     this.showOnboarding(false);
     this.handleProfileChange();
     this.switchTab('dashboard');
-    this.showToast('Welcome to GreenMaster AI! Your personalized lawn care schedule is ready.');
+    this.showToast('🌱 Consultation complete! Master 6-horizon plan initialized.');
   },
 
   renderProfileForm() {
@@ -655,7 +881,8 @@ const App = {
       equipment: getCheckedValues('equipment-checklist'),
       fertilisers: getCheckedValues('fertilisers-checklist'),
       herbicides: getCheckedValues('herbicides-checklist').filter(h => !h.includes('PGR') && !h.includes('Wetting Agent')),
-      specialTreatments: getCheckedValues('herbicides-checklist').filter(h => h.includes('PGR') || h.includes('Wetting Agent'))
+      specialTreatments: getCheckedValues('herbicides-checklist').filter(h => h.includes('PGR') || h.includes('Wetting Agent')),
+      history: this.profile.history || {}
     };
 
     this.profile = updatedProfile;
