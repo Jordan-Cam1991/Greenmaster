@@ -500,19 +500,18 @@
 
   </div>
 
-  <!-- Lucide Icon Initialization -->
-  <script>
-    lucide.createIcons();
-    // Re-create icons whenever DOM changes
-    const observer = new MutationObserver(() => lucide.createIcons());
-    observer.observe(document.body, { childList: true, subtree: true });
-  </script>
-
   <!-- Core Scripts -->
   <script src="js/storage.js"></script>
   <script src="js/notifications.js"></script>
   <script src="js/planner-engine.js"></script>
   <script src="js/vision-engine.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- Lucide Icon Initialization -->
+  <script>
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  </script>
 </body>
 </html>

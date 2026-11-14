@@ -157,6 +157,10 @@ const App = {
       btn.classList.toggle('text-slate-400', !active);
     });
 
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -180,6 +184,9 @@ const App = {
     this.renderNotificationStatus();
     this.renderHistory();
     this.renderAnalytics();
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 10);
+    }
   },
 
   renderHeader() {
