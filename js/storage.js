@@ -300,7 +300,11 @@ const StorageManager = {
   getLogs() {
     try {
       const data = localStorage.getItem(this.KEYS.LOGS);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (!parsed.byZone) parsed.byZone = {};
+        return parsed;
+      }
     } catch (e) {
       console.warn('Error reading logs', e);
     }
@@ -316,28 +320,97 @@ const StorageManager = {
       lastWater: fiveDaysAgo.toISOString(),
       lastFeed: tenDaysAgo.toISOString(),
       fertiliserLevel: '85%',
-      preEmergentActiveDays: 38
+      preEmergentActiveDays: 38,
+      byZone: {}
     };
   },
 
-  logMow() {
+  getZoneLogs(zoneId = 'all') {
     const logs = this.getLogs();
-    logs.lastMow = new Date().toISOString();
+    if (!logs.byZone) logs.byZone = {};
+    if (zoneId === 'all' || !zoneId) {
+      return logs;
+    }
+    if (!logs.byZone[zoneId]) {
+      logs.byZone[zoneId] = {
+        lastMow: logs.lastMow,
+        lastWater: logs.lastWater,
+        lastFeed: logs.lastFeed,
+        lastFeedProduct: logs.lastFeedProduct || 'Liquid Foliar',
+        fertiliserLevel: logs.fertiliserLevel || '85%',
+        preEmergentActiveDays: logs.preEmergentActiveDays || 38
+      };
+    }
+    return logs.byZone[zoneId];
+  },
+
+  logMow(zoneId = 'all') {
+    const logs = this.getLogs();
+    const now = new Date().toISOString();
+    logs.lastMow = now;
+    if (!logs.byZone) logs.byZone = {};
+    if (zoneId && zoneId !== 'all') {
+      if (!logs.byZone[zoneId]) logs.byZone[zoneId] = {};
+      logs.byZone[zoneId].lastMow = now;
+    } else {
+      const zones = this.getZones();
+      zones.forEach(z => {
+        if (!logs.byZone[z.id]) logs.byZone[z.id] = {};
+        logs.byZone[z.id].lastMow = now;
+      });
+    }
     localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
     return logs;
   },
 
-  logWater() {
+  logWater(zoneId = 'all') {
     const logs = this.getLogs();
-    logs.lastWater = new Date().toISOString();
+    const now = new Date().toISOString();
+    logs.lastWater = now;
+    if (!logs.byZone) logs.byZone = {};
+    if (zoneId && zoneId !== 'all') {
+      if (!logs.byZone[zoneId]) logs.byZone[zoneId] = {};
+      logs.byZone[zoneId].lastWater = now;
+    } else {
+      const zones = this.getZones();
+      zones.forEach(z => {
+        if (!logs.byZone[z.id]) logs.byZone[z.id] = {};
+        logs.byZone[z.id].lastWater = now;
+      });
+    }
     localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
     return logs;
   },
 
-  logFeed(product = 'Liquid Foliar N-P-K') {
+  logFeed(product = 'Liquid Foliar N-P-K', zoneId = 'all') {
     const logs = this.getLogs();
-    logs.lastFeed = new Date().toISOString();
+    const now = new Date().toISOString();
+    logs.lastFeed = now;
     logs.lastFeedProduct = product;
+    if (!logs.byZone) logs.byZone = {};
+    if (zoneId && zoneId !== 'all') {
+      if (!logs.byZone[zoneId]) logs.byZone[zoneId] = {};
+      logs.byZone[zoneId].lastFeed = now;
+      logs.byZone[zoneId].lastFeedProduct = product;
+    } else {
+      const zones = this.getZones();
+      zones.forEach(z => {
+        if (!logs.byZone[z.id]) logs.byZone[z.id] = {};
+        logs.byZone[z.id].lastFeed = now;
+        logs.byZone[z.id].lastFeedProduct = product;
+      });
+    }
+    localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
+    return logs;
+  },
+
+  saveZoneHistory(zoneId, historyData) {
+    const logs = this.getLogs();
+    if (!logs.byZone) logs.byZone = {};
+    logs.byZone[zoneId] = {
+      ...(logs.byZone[zoneId] || {}),
+      ...historyData
+    };
     localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
     return logs;
   },

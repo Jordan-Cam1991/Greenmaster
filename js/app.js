@@ -210,6 +210,16 @@ const App = {
         this.showToast('Notification sent & chime played!');
       });
     }
+
+    const syncAllCheck = document.getElementById('ob-sync-all-sections');
+    if (syncAllCheck) {
+      syncAllCheck.addEventListener('change', () => {
+        if (syncAllCheck.checked) {
+          this.saveCurrentZoneHistoryFromForm();
+          this.showToast('Applied current dates to all sections!');
+        }
+      });
+    }
   },
 
   bindZoneEvents() {
@@ -226,6 +236,7 @@ const App = {
   switchZone(zoneId) {
     this.activeZoneId = zoneId;
     StorageManager.setActiveZoneId(zoneId);
+    this.renderHeaderZoneSelector();
     this.renderZoneBar();
     this.renderDashboard();
     this.renderTasksList();
@@ -304,6 +315,34 @@ const App = {
       tierBadge.innerText = info.label;
       tierBadge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold ${info.cls}`;
     }
+
+    this.renderHeaderZoneSelector();
+  },
+
+  renderHeaderZoneSelector() {
+    const select = document.getElementById('header-section-select');
+    if (!select) return;
+    const zones = StorageManager.getZones();
+
+    const attentionBadges = {
+      'showpiece': '⭐ Showpiece',
+      'recovery': '🔥 TLC / Recovery',
+      'standard': '🌿 Standard',
+      'low': '🛋️ Low-Key'
+    };
+
+    select.innerHTML = `
+      <option value="all" ${this.activeZoneId === 'all' ? 'selected' : ''}>🌿 All Lawn Sections (Entire Property)</option>
+      ${zones.map(z => `
+        <option value="${z.id}" ${this.activeZoneId === z.id ? 'selected' : ''}>
+          ${z.name} (${attentionBadges[z.attentionLevel] || '🌿 Standard'} • ${z.hoc}mm)
+        </option>
+      `).join('')}
+    `;
+  },
+
+  handleHeaderZoneChange(zoneId) {
+    this.switchZone(zoneId);
   },
 
   renderZoneBar() {
@@ -497,13 +536,14 @@ const App = {
   },
 
   renderDashboard() {
-    const logs = StorageManager.getLogs();
     const activeZone = StorageManager.getActiveZone();
+    const zoneLogs = StorageManager.getZoneLogs(this.activeZoneId);
 
-    // 1. Last Mow relative text
+    // 1. Last Mow relative text (Per section or all)
     const lastMowEl = document.getElementById('dash-last-mow-text');
-    if (lastMowEl && logs.lastMow) {
-      lastMowEl.innerText = this.formatRelativeTime(logs.lastMow);
+    if (lastMowEl && zoneLogs.lastMow) {
+      const areaLabel = activeZone ? ` (${activeZone.name})` : '';
+      lastMowEl.innerText = `${this.formatRelativeTime(zoneLogs.lastMow)}${areaLabel}`;
     }
 
     // 2. Next Action from Planner
@@ -523,15 +563,15 @@ const App = {
     // 3. Fertiliser & Nutrition Level
     const fertStatusEl = document.getElementById('dash-fert-status');
     const fertSubEl = document.getElementById('dash-fert-sub');
-    if (fertStatusEl && logs.lastFeed) {
-      fertStatusEl.innerText = `Fed ${this.formatRelativeTime(logs.lastFeed)}`;
-      if (fertSubEl) fertSubEl.innerText = `Pre-emergent barrier: ${logs.preEmergentActiveDays || 38} days active`;
+    if (fertStatusEl && zoneLogs.lastFeed) {
+      fertStatusEl.innerText = `Fed ${this.formatRelativeTime(zoneLogs.lastFeed)}`;
+      if (fertSubEl) fertSubEl.innerText = `${zoneLogs.lastFeedProduct || 'Foliar Feed'} • ${zoneLogs.preEmergentActiveDays || 38}d weed barrier`;
     }
 
     // 4. Watering & Sprinkler Status
     const waterStatusEl = document.getElementById('dash-water-status');
-    if (waterStatusEl && logs.lastWater) {
-      waterStatusEl.innerText = `Watered ${this.formatRelativeTime(logs.lastWater)}`;
+    if (waterStatusEl && zoneLogs.lastWater) {
+      waterStatusEl.innerText = `Watered ${this.formatRelativeTime(zoneLogs.lastWater)}`;
     }
 
     // 5. Height of Cut Target (Filtered by zone if selected)
@@ -608,24 +648,27 @@ const App = {
   },
 
   logQuickMow() {
-    StorageManager.logMow();
+    StorageManager.logMow(this.activeZoneId);
     NotificationManager.playTone();
     this.renderDashboard();
-    this.showToast('✂️ Nice cut! Blade loves a fresh haircut.');
+    const zoneName = this.activeZoneId === 'all' ? 'All Sections' : (StorageManager.getActiveZone()?.name || 'Section');
+    this.showToast(`✂️ Nice cut! Logged mow for ${zoneName}.`);
   },
 
   logQuickWater() {
-    StorageManager.logWater();
+    StorageManager.logWater(this.activeZoneId);
     NotificationManager.playTone();
     this.renderDashboard();
-    this.showToast('💧 Ahh, refreshing! Irrigation cycle logged.');
+    const zoneName = this.activeZoneId === 'all' ? 'All Sections' : (StorageManager.getActiveZone()?.name || 'Section');
+    this.showToast(`💧 Refreshed! Logged watering for ${zoneName}.`);
   },
 
   logQuickFeed() {
-    StorageManager.logFeed('Foliar Spoon-feed');
+    StorageManager.logFeed('Foliar Spoon-feed', this.activeZoneId);
     NotificationManager.playTone();
     this.renderDashboard();
-    this.showToast('🧪 Delicious! Fertiliser application logged.');
+    const zoneName = this.activeZoneId === 'all' ? 'All Sections' : (StorageManager.getActiveZone()?.name || 'Section');
+    this.showToast(`🧪 Lawn food logged for ${zoneName}!`);
   },
 
   renderTasksList() {
@@ -952,6 +995,8 @@ const App = {
         this.onboardingStep = 1;
         const currentZones = StorageManager.getZones();
         this.consultationData.zones = currentZones && currentZones.length > 0 ? currentZones.map(z => ({ ...z })) : [];
+        this.consultationData.currentAuditingZoneId = null;
+        this.consultationData.zoneHistory = {};
         if (this.profile && Array.isArray(this.profile.customOwnedProducts)) {
           this.consultationData.customOwnedProducts = this.profile.customOwnedProducts.map((name, i) => ({
             key: 'existing_' + i,
@@ -1028,6 +1073,8 @@ const App = {
 
     if (this.onboardingStep === 2) {
       this.renderOnboardingSections();
+    } else if (this.onboardingStep === 4) {
+      this.renderHistorySectionSelect();
     } else if (this.onboardingStep === 6) {
       this.renderConsultationSummary();
     }
@@ -1035,6 +1082,90 @@ const App = {
     if (window.lucide) {
       setTimeout(() => lucide.createIcons(), 10);
     }
+  },
+
+  renderHistorySectionSelect() {
+    const select = document.getElementById('ob-history-section-select');
+    if (!select) return;
+    const zones = this.consultationData.zones || StorageManager.getZones();
+    if (!zones || zones.length === 0) return;
+
+    if (!this.consultationData.currentAuditingZoneId) {
+      this.consultationData.currentAuditingZoneId = zones[0].id;
+    }
+
+    select.innerHTML = zones.map(z => `
+      <option value="${z.id}" ${this.consultationData.currentAuditingZoneId === z.id ? 'selected' : ''}>
+        🌱 ${z.name} (${z.attentionLevel === 'showpiece' ? '⭐ Showpiece' : z.attentionLevel === 'recovery' ? '🔥 Recovery' : '🌿 Standard'} • ${z.hoc}mm)
+      </option>
+    `).join('');
+
+    this.loadZoneHistoryToForm(this.consultationData.currentAuditingZoneId);
+  },
+
+  handleHistorySectionChange(newZoneId) {
+    this.saveCurrentZoneHistoryFromForm();
+    this.consultationData.currentAuditingZoneId = newZoneId;
+    this.loadZoneHistoryToForm(newZoneId);
+
+    const zones = this.consultationData.zones || [];
+    const z = zones.find(item => item.id === newZoneId);
+    if (z) {
+      this.showToast(`Auditing history for "${z.name}"`);
+    }
+  },
+
+  saveCurrentZoneHistoryFromForm() {
+    const currentId = this.consultationData.currentAuditingZoneId;
+    if (!currentId) return;
+
+    const data = {
+      lastMowDays: Number(document.getElementById('ob-last-mow')?.value || 3),
+      lastFertDays: Number(document.getElementById('ob-last-fert')?.value || 14),
+      lastFertType: document.getElementById('ob-fert-type')?.value || 'Liquid Foliar',
+      preEmergentStatus: document.getElementById('ob-pre-emergent')?.value || 'none',
+      lastRenovation: document.getElementById('ob-renovation')?.value || 'last_year'
+    };
+
+    if (!this.consultationData.zoneHistory) {
+      this.consultationData.zoneHistory = {};
+    }
+
+    this.consultationData.zoneHistory[currentId] = data;
+
+    // If 'Same for all' is checked, copy to all sections
+    const syncAll = document.getElementById('ob-sync-all-sections')?.checked;
+    if (syncAll && this.consultationData.zones) {
+      this.consultationData.zones.forEach(z => {
+        this.consultationData.zoneHistory[z.id] = { ...data };
+      });
+    }
+  },
+
+  loadZoneHistoryToForm(zoneId) {
+    if (!this.consultationData.zoneHistory) {
+      this.consultationData.zoneHistory = {};
+    }
+
+    const data = this.consultationData.zoneHistory[zoneId] || {
+      lastMowDays: this.consultationData.lastMowDays || 3,
+      lastFertDays: this.consultationData.lastFertDays || 14,
+      lastFertType: this.consultationData.lastFertType || 'Liquid Foliar',
+      preEmergentStatus: this.consultationData.preEmergentStatus || 'none',
+      lastRenovation: this.consultationData.lastRenovation || 'last_year'
+    };
+
+    const mowSelect = document.getElementById('ob-last-mow');
+    const fertSelect = document.getElementById('ob-last-fert');
+    const fertTypeSelect = document.getElementById('ob-fert-type');
+    const preEmSelect = document.getElementById('ob-pre-emergent');
+    const renovSelect = document.getElementById('ob-renovation');
+
+    if (mowSelect) mowSelect.value = String(data.lastMowDays);
+    if (fertSelect) fertSelect.value = String(data.lastFertDays);
+    if (fertTypeSelect) fertTypeSelect.value = data.lastFertType;
+    if (preEmSelect) preEmSelect.value = data.preEmergentStatus;
+    if (renovSelect) renovSelect.value = data.lastRenovation;
   },
 
   renderOnboardingSections() {
@@ -1213,11 +1344,15 @@ const App = {
       if (document.getElementById('ob-eq-aerator')?.checked) eq.push('Coring Aerator');
       this.consultationData.equipment = eq;
     } else if (step === 4) {
-      this.consultationData.lastMowDays = Number(document.getElementById('ob-last-mow')?.value || 3);
-      this.consultationData.lastFertDays = Number(document.getElementById('ob-last-fert')?.value || 30);
-      this.consultationData.lastFertType = document.getElementById('ob-fert-type')?.value || 'none';
-      this.consultationData.preEmergentStatus = document.getElementById('ob-pre-emergent')?.value || 'none';
-      this.consultationData.lastRenovation = document.getElementById('ob-renovation')?.value || 'never';
+      this.saveCurrentZoneHistoryFromForm();
+      const currentId = this.consultationData.currentAuditingZoneId || (this.consultationData.zones && this.consultationData.zones[0]?.id);
+      const hist = (this.consultationData.zoneHistory && currentId) ? this.consultationData.zoneHistory[currentId] : null;
+
+      this.consultationData.lastMowDays = hist ? hist.lastMowDays : Number(document.getElementById('ob-last-mow')?.value || 3);
+      this.consultationData.lastFertDays = hist ? hist.lastFertDays : Number(document.getElementById('ob-last-fert')?.value || 14);
+      this.consultationData.lastFertType = hist ? hist.lastFertType : (document.getElementById('ob-fert-type')?.value || 'Liquid Foliar');
+      this.consultationData.preEmergentStatus = hist ? hist.preEmergentStatus : (document.getElementById('ob-pre-emergent')?.value || 'none');
+      this.consultationData.lastRenovation = hist ? hist.lastRenovation : (document.getElementById('ob-renovation')?.value || 'last_year');
     }
   },
 
@@ -1421,6 +1556,31 @@ const App = {
 
     if (d.zones && d.zones.length > 0) {
       StorageManager.saveZones(d.zones);
+    }
+
+    // Save per-zone history logs so each section remembers its own last cut & feed
+    if (d.zoneHistory && d.zones) {
+      d.zones.forEach(z => {
+        const zh = d.zoneHistory[z.id] || {
+          lastMowDays: d.lastMowDays,
+          lastFertDays: d.lastFertDays,
+          lastFertType: d.lastFertType,
+          preEmergentStatus: d.preEmergentStatus,
+          lastRenovation: d.lastRenovation
+        };
+        const zMowDate = new Date();
+        zMowDate.setDate(zMowDate.getDate() - (zh.lastMowDays || 3));
+        const zFertDate = new Date();
+        zFertDate.setDate(zFertDate.getDate() - (zh.lastFertDays || 14));
+
+        StorageManager.saveZoneHistory(z.id, {
+          lastMow: zMowDate.toISOString(),
+          lastFeed: zFertDate.toISOString(),
+          lastFeedProduct: zh.lastFertType || 'Liquid Foliar',
+          preEmergentStatus: zh.preEmergentStatus || 'none',
+          lastRenovation: zh.lastRenovation || 'last_year'
+        });
+      });
     }
 
     const initialLogs = StorageManager.getLogs();
