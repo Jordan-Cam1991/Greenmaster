@@ -1,0 +1,11 @@
+{
+  "name": "greenmaster-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GreenMaster AI - Smart Lawn Care PWA & Blade AI Agronomist",
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "openai": "^4.100.0"
+  }
+}

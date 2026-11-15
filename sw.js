@@ -1,5 +1,5 @@
 // Service Worker for GreenMaster AI Lawn Care App
-const CACHE_NAME = 'greenmaster-v12';
+const CACHE_NAME = 'greenmaster-v13';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -38,6 +38,10 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Never intercept non-GET or /api/ function calls
+  if (e.request.method !== 'GET' || e.request.url.includes('/api/')) {
+    return;
+  }
   // Let network take precedence, fall back to cache
   e.respondWith(
     fetch(e.request).catch(() => caches.match(e.request))

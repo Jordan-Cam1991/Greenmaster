@@ -8,6 +8,9 @@ Thumbs.db
 .env
 .env.local
 
+# Dependencies
+node_modules/
+
 # Logs & Python cache
 __pycache__/
 *.pyc

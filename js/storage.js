@@ -620,5 +620,54 @@ const StorageManager = {
     const list = this.getUserCalendarEvents().filter(e => e.id !== entryId);
     localStorage.setItem('gm_user_calendar_events', JSON.stringify(list));
     return list;
+  },
+
+  getPhotoPlanCalendars() {
+    try {
+      const raw = localStorage.getItem('gm_blade_photo_plans');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading photo plan calendars', e);
+    }
+    return {};
+  },
+
+  getPhotoPlanCalendar(zoneId = 'all') {
+    const map = this.getPhotoPlanCalendars();
+    if (zoneId && zoneId !== 'all') {
+      return map[zoneId] || null;
+    }
+    // Merge all section photo plans when viewing Entire Property
+    const allTasks = [];
+    Object.keys(map).forEach(zId => {
+      const entry = map[zId];
+      if (entry && Array.isArray(entry.tasks)) {
+        entry.tasks.forEach(t => allTasks.push({ ...t, zoneId: zId }));
+      }
+    });
+    return allTasks.length > 0 ? { updatedAt: new Date().toISOString(), tasks: allTasks } : null;
+  },
+
+  savePhotoPlanCalendar(zoneId, tasks, summary = '') {
+    if (!zoneId) return;
+    try {
+      const map = this.getPhotoPlanCalendars();
+      const createdDateKey = new Date().toISOString().split('T')[0];
+      map[zoneId] = {
+        zoneId,
+        createdDateKey,
+        updatedAt: new Date().toISOString(),
+        summary,
+        tasks: Array.isArray(tasks) ? tasks : []
+      };
+      localStorage.setItem('gm_blade_photo_plans', JSON.stringify(map));
+      return map[zoneId];
+    } catch (e) {
+      console.error('Error saving photo plan calendar', e);
+      return null;
+    }
   }
 };

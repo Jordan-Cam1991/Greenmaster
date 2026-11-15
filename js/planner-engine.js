@@ -948,27 +948,84 @@ const PlannerEngine = {
       }
     }
 
-    // 3. Schedule Photo-Driven Treatments (if photos showed dry spots or weeds)
-    if (isRecovery) {
-      placeOnDryDay(1 < daysCount ? 1 : 0, {
-        type: 'feed',
-        icon: '🩹',
-        title: `Soil Wetting Agent Soak (${sectionName})`,
-        timeLabel: '9:00 – 9:20 am',
-        startHour: 9,
-        subtext: `Added from AI photo check-in to fix dry patches`,
-        color: 'amber'
+    // 3. Schedule Photo-Catalyst Plan from Blade AI (Tailored to Photos + Owned Gear & Shed Products)
+    const photoPlanData = (typeof StorageManager !== 'undefined' && StorageManager.getPhotoPlanCalendar)
+      ? StorageManager.getPhotoPlanCalendar(activeZone ? activeZone.id : 'all')
+      : null;
+
+    const photoScheduledDays = { mow: [], feed: [] };
+
+    if (photoPlanData && Array.isArray(photoPlanData.tasks) && photoPlanData.tasks.length > 0) {
+      photoPlanData.tasks.slice(0, 14).forEach((pt, pIdx) => {
+        let baseOffset = Number(pt.dayOffset ?? 1);
+        if (photoPlanData.createdDateKey) {
+          const createdD = new Date(photoPlanData.createdDateKey + 'T00:00:00');
+          const ageDays = Math.max(0, Math.round((now - createdD) / msPerDay));
+          baseOffset = baseOffset - ageDays;
+        }
+        if (baseOffset < 0 || baseOffset >= daysCount) return;
+
+        const targetType = pt.type || 'feed';
+        const placedDay = (targetType === 'water')
+          ? (() => {
+              dayBuckets[baseOffset].events.push({
+                id: `photo_plan_${targetType}_${pIdx}_${dayBuckets[baseOffset].dateKey}`,
+                dateKey: dayBuckets[baseOffset].dateKey,
+                type: targetType,
+                icon: pt.icon || '💧',
+                title: pt.title || `Moisture Fix (${sectionName})`,
+                timeLabel: pt.timeLabel || '7:00 – 7:20 am',
+                startHour: Number(pt.startHour ?? 7),
+                subtext: pt.subtext || 'Updated from Blade AI photo diagnosis',
+                color: pt.color || 'amber'
+              });
+              return dayBuckets[baseOffset];
+            })()
+          : placeOnDryDay(baseOffset, {
+              type: targetType,
+              icon: pt.icon || '✨',
+              title: pt.title || `AI Lawn Action (${sectionName})`,
+              timeLabel: pt.timeLabel || '8:30 – 9:00 am',
+              startHour: Number(pt.startHour ?? 8),
+              subtext: pt.subtext || 'Updated from Blade AI photo diagnosis',
+              color: pt.color || 'teal'
+            });
+
+        if (placedDay && (targetType === 'mow' || targetType === 'feed')) {
+          photoScheduledDays[targetType].push(placedDay.offset);
+        }
       });
+    } else {
+      if (isRecovery) {
+        placeOnDryDay(1 < daysCount ? 1 : 0, {
+          type: 'feed',
+          icon: '🩹',
+          title: `Soil Wetting Agent Soak (${sectionName})`,
+          timeLabel: '9:00 – 9:20 am',
+          startHour: 9,
+          subtext: `Added from AI photo check-in to fix dry patches`,
+          color: 'amber'
+        });
+      }
+      if (hasWeeds) {
+        placeOnDryDay(2 < daysCount ? 2 : 0, {
+          type: 'weed',
+          icon: '🎯',
+          title: `Quick Weed Spot-Treat (10 min)`,
+          timeLabel: '9:30 – 9:45 am',
+          startHour: 9,
+          subtext: `Added from AI photo check-in`,
+          color: 'amber'
+        });
+      }
     }
-    if (hasWeeds) {
-      placeOnDryDay(2 < daysCount ? 2 : 0, {
-        type: 'weed',
-        icon: '🎯',
-        title: `Quick Weed Spot-Treat (10 min)`,
-        timeLabel: '9:30 – 9:45 am',
-        startHour: 9,
-        subtext: `Added from AI photo check-in`,
-        color: 'amber'
+
+    // Remove overlapping generic default mow events on days covered by photo-catalyst mows
+    if (photoScheduledDays.mow.length > 0) {
+      dayBuckets.forEach(b => {
+        if (photoScheduledDays.mow.some(po => Math.abs(po - b.offset) <= 1)) {
+          b.events = b.events.filter(ev => !(ev.type === 'mow' && !ev.subtext.includes('Photo-plan') && !ev.subtext.includes('Cross-cut') && !ev.subtext.includes('Updated from Blade AI') && !ev.title.includes(':')));
+        }
       });
     }
 
@@ -995,9 +1052,16 @@ const PlannerEngine = {
       // Ignore storage parse issue
     }
 
-    // 4. Schedule Regular Lawn Food based on lastFeed
+    // 4. Schedule Regular Lawn Food based on lastFeed (unless covered nearby by Photo-Catalyst Plan)
     let nextFeedDay = null;
+    if (photoScheduledDays.feed.length > 0) {
+      const firstPhotoFeed = Math.min(...photoScheduledDays.feed);
+      nextFeedDay = dayBuckets[firstPhotoFeed] || null;
+    }
     for (let fDay = firstFeedOffset; fDay < daysCount; fDay += feedInterval) {
+      if (photoScheduledDays.feed.some(pf => Math.abs(pf - fDay) <= 3)) {
+        continue;
+      }
       const reason = fDay === firstFeedOffset
         ? `Last fed ${daysSinceFeed}d ago (2-week cycle)`
         : `Fortnightly green-up feed`;

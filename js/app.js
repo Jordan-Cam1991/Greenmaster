@@ -11,6 +11,7 @@ const App = {
   plannerMode: 'segmented',
   scanTargetZoneId: 'front_main',
   stagedPhotosByZone: {},
+  lastChatPhotosByZone: {},
   modalViewingZoneId: null,
   latestZoneScanResults: {},
   currentPlan: null,
@@ -482,8 +483,22 @@ const App = {
     const tierBadge = document.getElementById('header-tier-badge');
     const lawnNameEl = document.getElementById('header-lawn-name');
 
-    if (scoreEl && this.currentPlan) {
-      scoreEl.innerText = `${this.currentPlan.healthScore || 85}%`;
+    if (scoreEl) {
+      let displayScore = this.currentPlan?.healthScore || 85;
+      if (this.activeZoneId !== 'all') {
+        const zRes = this.getSectionAnalysisResult(this.activeZoneId);
+        if (zRes && zRes.healthScore) displayScore = zRes.healthScore;
+      } else {
+        const zones = StorageManager.getZones();
+        const zonePlans = StorageManager.getZonePlans();
+        const scannedScores = zones
+          .map(z => zonePlans[z.id]?.healthScore)
+          .filter(v => typeof v === 'number' && v > 0);
+        if (scannedScores.length > 0) {
+          displayScore = Math.round(scannedScores.reduce((a, b) => a + b, 0) / scannedScores.length);
+        }
+      }
+      scoreEl.innerText = `${displayScore}%`;
     }
     if (lawnNameEl) {
       lawnNameEl.innerText = this.profile.lawnName || 'My Turf';
@@ -1381,19 +1396,42 @@ const App = {
       // Keep the most recent 12 messages (without large data URLs in localStorage to save quota)
       const compact = (this.bladeChatMessages || []).slice(-12).map(m => ({
         ...m,
-        photos: Array.isArray(m.photos) ? m.photos.slice(0, 2) : []
+        photos: Array.isArray(m.photos) ? m.photos.slice(0, 4) : []
       }));
       localStorage.setItem('gm_blade_chat_history', JSON.stringify(compact));
     } catch (e) {
-      // Ignore storage quota if photos are large
+      // Fallback: strip photos if storage quota is tight
+      try {
+        const light = (this.bladeChatMessages || []).slice(-10).map(m => ({
+          ...m,
+          photos: Array.isArray(m.photos) ? m.photos.slice(0, 1) : []
+        }));
+        localStorage.setItem('gm_blade_chat_history', JSON.stringify(light));
+      } catch (e2) {
+        // Ignore
+      }
     }
   },
 
   clearBladeChat() {
     this.bladeChatMessages = null;
+    this.lastChatPhotosByZone = {};
     localStorage.removeItem('gm_blade_chat_history');
     this.renderBladeChat();
     this.showToast('✨ Blade AI chat cleared!');
+  },
+
+  getRecentChatPhotos(targetZoneId) {
+    if (Array.isArray(this.lastChatPhotosByZone[targetZoneId]) && this.lastChatPhotosByZone[targetZoneId].length > 0) {
+      return this.lastChatPhotosByZone[targetZoneId];
+    }
+    const msgs = this.getBladeChatMessages();
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user' && Array.isArray(msgs[i].photos) && msgs[i].photos.length > 0) {
+        return msgs[i].photos;
+      }
+    }
+    return [];
   },
 
   renderBladeChat() {
@@ -1426,6 +1464,14 @@ const App = {
            </div>`
         : '';
 
+      const viewCalBtnHtml = m.hasUpdatedCalendar
+        ? `<div class="mt-2 pt-2 border-t border-slate-200/80">
+             <button type="button" onclick="App.switchTab('tasks')" class="w-full py-2 px-3 rounded-xl text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all btn-press flex items-center justify-center gap-1.5">
+               <span>📅 View Updated Week / Month Calendar →</span>
+             </button>
+           </div>`
+        : '';
+
       return `
         <div class="flex items-start gap-2">
           <div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-extrabold flex-shrink-0 mt-0.5">
@@ -1434,6 +1480,7 @@ const App = {
           <div class="flex-1 bg-slate-50 border border-slate-200/90 text-slate-800 p-3 rounded-2xl rounded-tl-sm text-xs leading-relaxed">
             ${m.html}
             ${taskBtnHtml}
+            ${viewCalBtnHtml}
           </div>
         </div>
       `;
@@ -1453,7 +1500,20 @@ const App = {
     const question = input ? input.value.trim() : '';
     const stagedPhotos = [...this.getActiveStagedPhotos()];
 
-    if (!question && stagedPhotos.length === 0) {
+    const activeZone = StorageManager.getActiveZone();
+    const targetZoneId = activeZone ? activeZone.id : (this.scanTargetZoneId || StorageManager.getZones()[0]?.id || 'front_main');
+
+    if (stagedPhotos.length > 0) {
+      this.lastChatPhotosByZone[targetZoneId] = stagedPhotos;
+    }
+
+    // Remember previously uploaded photos when the user asks follow-ups like "analyse my front yard photos"
+    const mentionsPhotosOrAnalysis = /\b(photo|photos|pic|pics|image|images|analy|assess|look|focus|next week|week|fortnight|month|plan|weed|brown|patch|dry|spot|this)\b/i.test(question);
+    const photosForAI = stagedPhotos.length > 0
+      ? stagedPhotos
+      : (mentionsPhotosOrAnalysis ? this.getRecentChatPhotos(targetZoneId) : []);
+
+    if (!question && photosForAI.length === 0) {
       this.showToast('📸 Snap/attach a photo or type a question for Blade first!');
       return;
     }
@@ -1467,30 +1527,40 @@ const App = {
       text: question || `📸 Log ${stagedPhotos.length} lawn photo${stagedPhotos.length === 1 ? '' : 's'} & analyze`,
       photos: stagedPhotos
     });
+
+    const loadingId = 'loading_' + Date.now();
+    msgs.push({
+      role: 'blade',
+      id: loadingId,
+      html: `<div class="flex items-center gap-2 text-emerald-700 font-bold"><span>✨ Blade AI is analyzing ${photosForAI.length > 0 ? `${photosForAI.length} lawn photo${photosForAI.length > 1 ? 's' : ''}, ` : ''}your equipment & shed products...</span></div>`,
+      calendarTask: null
+    });
     this.renderBladeChat();
 
     const laser = document.getElementById('scanner-laser');
-    if (laser && stagedPhotos.length > 0) laser.classList.remove('hidden');
+    if (laser && photosForAI.length > 0) laser.classList.remove('hidden');
 
     try {
-      const activeZone = StorageManager.getActiveZone();
-      const targetZoneId = activeZone ? activeZone.id : (StorageManager.getZones()[0]?.id || 'front_main');
       const settings = StorageManager.getSettings();
+      const zoneLogs = StorageManager.getZoneLogs(targetZoneId);
 
       const aiRes = await VisionEngine.askBladeAI({
         question,
-        photos: stagedPhotos,
-        activeZone,
+        photos: photosForAI,
+        activeZone: activeZone || StorageManager.getZones().find(z => z.id === targetZoneId) || null,
         profile: this.profile,
         weather: this.weather,
         tapTimer: StorageManager.getTapTimer(),
+        logs: zoneLogs,
         apiKey: settings.apiKey
       });
 
-      // Automatically log any uploaded photo scan to update Health Score & Calendar
+      // Automatically log any uploaded photo scan to update Health Score & Section Records
       if (aiRes.photoAnalysis) {
-        const record = StorageManager.saveScanResult(aiRes.photoAnalysis, targetZoneId);
-        this.latestZoneScanResults[targetZoneId] = record;
+        const record = StorageManager.addScanRecord(aiRes.photoAnalysis, targetZoneId);
+        if (record) {
+          this.latestZoneScanResults[targetZoneId] = record;
+        }
         this.currentPlan = {
           date: new Date().toISOString(),
           ...aiRes.photoAnalysis
@@ -1498,12 +1568,29 @@ const App = {
         StorageManager.saveActivePlan(this.currentPlan);
       }
 
-      msgs.push({
+      // Automatically update Calendar Planner (Week, Fortnight & Month) from the photo diagnosis
+      const hasCalendarPlan = Array.isArray(aiRes.calendarTasks) && aiRes.calendarTasks.length > 0;
+      if (hasCalendarPlan) {
+        StorageManager.savePhotoPlanCalendar(
+          targetZoneId,
+          aiRes.calendarTasks,
+          aiRes.photoAnalysis?.overallVerdict || 'Photo-calibrated agronomist schedule'
+        );
+      }
+
+      const loadIdx = msgs.findIndex(m => m.id === loadingId);
+      const replyObj = {
         role: 'blade',
         html: aiRes.replyHtml,
         calendarTask: aiRes.calendarTask || null,
-        addedToCalendar: false
-      });
+        addedToCalendar: false,
+        hasUpdatedCalendar: hasCalendarPlan
+      };
+      if (loadIdx !== -1) {
+        msgs[loadIdx] = replyObj;
+      } else {
+        msgs.push(replyObj);
+      }
 
       this.saveBladeChatMessages();
       this.renderBladeChat();
@@ -1511,13 +1598,20 @@ const App = {
       this.renderDashboard();
       this.renderTasksList();
       this.renderHistory();
+
+      if (hasCalendarPlan) {
+        this.showToast('📅 Photo diagnosis complete — Week & Month Calendar updated!');
+      }
     } catch (err) {
       console.error('Blade AI chat error:', err);
-      msgs.push({
+      const loadIdx = msgs.findIndex(m => m.id === loadingId);
+      const errObj = {
         role: 'blade',
-        html: 'I had a hiccup reading that photo—please try again or ask your question below!',
+        html: 'I hit a quick snag analyzing that photo—please tap <strong>Analyse Photos & Build Plan</strong> or try attaching the photo again.',
         calendarTask: null
-      });
+      };
+      if (loadIdx !== -1) msgs[loadIdx] = errObj;
+      else msgs.push(errObj);
       this.renderBladeChat();
     } finally {
       if (laser) laser.classList.add('hidden');
